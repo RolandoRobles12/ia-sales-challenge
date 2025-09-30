@@ -5,11 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import type { Product, Mode } from '@/types';
-import { PlayCircle } from 'lucide-react';
+import { PlayCircle, Mic } from 'lucide-react';
 
 interface SettingsFormProps {
   onStart: (settings: { product: Product; mode: Mode }) => void;
+  useVoiceAgent?: boolean;
+  onToggleVoiceAgent?: (value: boolean) => void;
 }
 
 const products: Product[] = ['Aviva Contigo', 'Aviva Tu Negocio', 'Aviva Tu Casa', 'Aviva Tu Compra'];
@@ -20,7 +23,11 @@ const modeDescriptions = {
   Apurado: 'Un cliente con poco tiempo que busca soluciones rápidas y directas.'
 };
 
-export default function SettingsForm({ onStart }: SettingsFormProps) {
+export default function SettingsForm({ 
+  onStart, 
+  useVoiceAgent = true, 
+  onToggleVoiceAgent 
+}: SettingsFormProps) {
   const [product, setProduct] = useState<Product>('Aviva Contigo');
   const [mode, setMode] = useState<Mode>('Curioso');
 
@@ -34,7 +41,9 @@ export default function SettingsForm({ onStart }: SettingsFormProps) {
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-headline">Configura tu práctica</CardTitle>
-          <CardDescription>Elige el producto que vas a vender y la personalidad del cliente.</CardDescription>
+          <CardDescription>
+            Elige el producto que vas a vender y la personalidad del cliente.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -53,6 +62,7 @@ export default function SettingsForm({ onStart }: SettingsFormProps) {
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="mode-select" className="text-lg">Modo del Cliente</Label>
               <Select value={mode} onValueChange={(value) => setMode(value as Mode)}>
@@ -69,9 +79,39 @@ export default function SettingsForm({ onStart }: SettingsFormProps) {
               </Select>
               <p className="text-sm text-muted-foreground">{modeDescriptions[mode]}</p>
             </div>
+
+            {onToggleVoiceAgent && (
+              <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+                <div className="space-y-0.5">
+                  <Label htmlFor="voice-agent-toggle" className="text-base cursor-pointer">
+                    Usar Agente de Voz de OpenAI
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    {useVoiceAgent 
+                      ? 'Conversación en tiempo real con voz natural' 
+                      : 'Sistema tradicional con texto y síntesis de voz'}
+                  </p>
+                </div>
+                <Switch
+                  id="voice-agent-toggle"
+                  checked={useVoiceAgent}
+                  onCheckedChange={onToggleVoiceAgent}
+                />
+              </div>
+            )}
+
             <Button type="submit" size="lg" className="w-full font-bold">
-              <PlayCircle className="mr-2 h-5 w-5" />
-              Iniciar Simulación
+              {useVoiceAgent ? (
+                <>
+                  <Mic className="mr-2 h-5 w-5" />
+                  Iniciar con Agente de Voz
+                </>
+              ) : (
+                <>
+                  <PlayCircle className="mr-2 h-5 w-5" />
+                  Iniciar Simulación
+                </>
+              )}
             </Button>
           </form>
         </CardContent>

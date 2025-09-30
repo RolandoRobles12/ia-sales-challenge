@@ -18,6 +18,11 @@ interface SimulationViewProps {
   onUserResponse: (transcript: string) => void;
   onRestart: () => void;
   isAvatarSpeaking: boolean;
+  useVoiceAgent?: boolean;
+  voiceAgentConnected?: boolean;
+  voiceAgentListening?: boolean;
+  onStartVoiceAgentListening?: () => void;
+  onStopVoiceAgentListening?: () => void;
 }
 
 export default function SimulationView({ 
@@ -28,7 +33,12 @@ export default function SimulationView({
   conversation, 
   onUserResponse,
   onRestart,
-  isAvatarSpeaking
+  isAvatarSpeaking,
+  useVoiceAgent = false,
+  voiceAgentConnected = false,
+  voiceAgentListening = false,
+  onStartVoiceAgentListening,
+  onStopVoiceAgentListening,
 }: SimulationViewProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -75,6 +85,11 @@ export default function SimulationView({
             product={product}
             mode={mode}
             isAvatarSpeaking={isAvatarSpeaking}
+            useVoiceAgent={useVoiceAgent}
+            voiceAgentConnected={voiceAgentConnected}
+            voiceAgentListening={voiceAgentListening}
+            onStartVoiceAgentListening={onStartVoiceAgentListening}
+            onStopVoiceAgentListening={onStopVoiceAgentListening}
           />
         </div>
       </div>
