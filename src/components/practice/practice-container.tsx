@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import type { Product, Mode, ConversationMessage } from '@/types';
 import SettingsForm from './settings-form';
@@ -11,8 +11,8 @@ import useOpenAIVoiceAgent from '@/hooks/use-openai-voice-agent';
 
 type GameState = 'configuring' | 'pitching' | 'objections' | 'finished';
 
-const PITCH_DURATION = 120; // 2 minutes
-const OBJECTIONS_DURATION = 60; // 1 minute
+const PITCH_DURATION = 120;
+const OBJECTIONS_DURATION = 60;
 
 export default function PracticeContainer() {
   const [gameState, setGameState] = useState<GameState>('configuring');
@@ -21,9 +21,28 @@ export default function PracticeContainer() {
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
   const [timer, setTimer] = useState(PITCH_DURATION);
   const [useVoiceAgent, setUseVoiceAgent] = useState(true);
-  const { toast } = useToast();
   
+  const { toast } = useToast();
   const { speak, isSpeaking: isSpeakingTTS, stop: stopTTS } = useSpeechSynthesis();
+
+  // Memoize the onMessage callback to prevent hook re-initialization
+  const handleVoiceAgentMessage = useCallback((message: string, isUser: boolean) => {
+    setConversation(prev => {
+      const last = prev[prev.length - 1];
+      
+      if (!isUser && last?.sender === 'avatar' && last.isLoading) {
+        return prev.map((msg, idx) => 
+          idx === prev.length - 1 
+            ? { ...msg, text: msg.text + message, isLoading: false }
+            : msg
+        );
+      } else if (isUser) {
+        return [...prev, { sender: 'user', text: message }];
+      } else {
+        return [...prev, { sender: 'avatar', text: message }];
+      }
+    });
+  }, []);
 
   const {
     isConnected: voiceAgentConnected,
@@ -37,49 +56,30 @@ export default function PracticeContainer() {
   } = useOpenAIVoiceAgent({
     product,
     mode,
-    onMessage: (message, isUser) => {
-      setConversation(prev => {
-        const last = prev[prev.length - 1];
-        
-        if (!isUser && last?.sender === 'avatar' && last.isLoading) {
-          return prev.map((msg, idx) => 
-            idx === prev.length - 1 
-              ? { ...msg, text: msg.text + message, isLoading: false }
-              : msg
-          );
-        } else if (isUser) {
-          return [...prev, { sender: 'user', text: message }];
-        } else {
-          return [...prev, { sender: 'avatar', text: message }];
-        }
-      });
-    },
+    onMessage: handleVoiceAgentMessage,
   });
 
   const isSpeaking = useVoiceAgent ? voiceAgentSpeaking : isSpeakingTTS;
 
-  const handleStartPractice = async (settings: { product: Product; mode: Mode }) => {
+  const handleStartPractice = useCallback(async (settings: { product: Product; mode: Mode }) => {
     setProduct(settings.product);
     setMode(settings.mode);
     
-    // Mensaje inicial del cliente IA
     const initialMessage = 'Hola, ¿qué me ofreces?';
-    setConversation([
-      { sender: 'avatar', text: initialMessage }
-    ]);
-
-    if (useVoiceAgent) {
-      await connectVoiceAgent();
-      // No hablamos el mensaje inicial con voz - solo lo mostramos
-    } else {
-      speak(initialMessage);
-    }
+    setConversation([{ sender: 'avatar', text: initialMessage }]);
 
     setGameState('pitching');
     setTimer(PITCH_DURATION);
-  };
+
+    if (useVoiceAgent) {
+      // Connect to voice agent (only once)
+      await connectVoiceAgent();
+    } else {
+      speak(initialMessage);
+    }
+  }, [useVoiceAgent, connectVoiceAgent, speak]);
   
-  const restartPractice = () => {
+  const restartPractice = useCallback(() => {
     if (useVoiceAgent) {
       disconnectVoiceAgent();
     } else {
@@ -88,9 +88,9 @@ export default function PracticeContainer() {
     setGameState('configuring');
     setConversation([]);
     setTimer(PITCH_DURATION);
-  };
+  }, [useVoiceAgent, disconnectVoiceAgent, stopTTS]);
 
-  const handleUserResponse = async (transcript: string) => {
+  const handleUserResponse = useCallback(async (transcript: string) => {
     if (!transcript || useVoiceAgent) return;
     
     stopTTS();
@@ -129,11 +129,11 @@ export default function PracticeContainer() {
       toast({
         variant: "destructive",
         title: "Error de IA",
-        description: "No se pudo obtener una respuesta del avatar. Por favor, intenta de nuevo.",
+        description: "No se pudo obtener una respuesta del avatar.",
       });
       setConversation(prev => prev.filter(msg => msg.id !== avatarMessageId));
     }
-  };
+  }, [useVoiceAgent, stopTTS, product, mode, speak, toast]);
   
   useEffect(() => {
     if (gameState !== 'pitching' && gameState !== 'objections') return;
