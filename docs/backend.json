@@ -1,0 +1,253 @@
+
+{
+  "entities": {
+    "Event": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Event",
+      "type": "object",
+      "description": "Represents a sales competition event.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the event."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the event."
+        },
+        "code": {
+          "type": "string",
+          "description": "Event code for joining the competition."
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "User ID of the admin who created the event."
+        },
+        "startsAt": {
+          "type": "string",
+          "description": "Date and time when the event starts.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "code",
+        "createdBy",
+        "startsAt"
+      ]
+    },
+    "Round": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Round",
+      "type": "object",
+      "description": "Represents a round within a sales competition event.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the round."
+        },
+        "eventId": {
+          "type": "string",
+          "description": "Reference to Event. (Relationship: Event 1:N Round)"
+        },
+        "durationPitch": {
+          "type": "number",
+          "description": "Duration of the pitch in seconds."
+        },
+        "durationQnA": {
+          "type": "number",
+          "description": "Duration of the Q&A session in seconds."
+        },
+        "product": {
+          "type": "string",
+          "description": "Product being pitched in this round (e.g., Aviva Contigo)."
+        },
+        "mode": {
+          "type": "string",
+          "description": "Customer mode for this round (e.g., Curious, Desconfiado)."
+        }
+      },
+      "required": [
+        "id",
+        "eventId",
+        "durationPitch",
+        "durationQnA",
+        "product",
+        "mode"
+      ]
+    },
+    "Participant": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Participant",
+      "type": "object",
+      "description": "Represents a participant in a sales competition.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the participant."
+        },
+        "alias": {
+          "type": "string",
+          "description": "Alias or nickname of the participant."
+        },
+        "team": {
+          "type": "string",
+          "description": "Team the participant belongs to (optional)."
+        }
+      },
+      "required": [
+        "id",
+        "alias"
+      ]
+    },
+    "Score": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Score",
+      "type": "object",
+      "description": "Represents the score given by a judge to a participant in a round.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the score."
+        },
+        "eventId": {
+          "type": "string",
+          "description": "Reference to Event. (Relationship: Event 1:N Score)"
+        },
+        "roundId": {
+          "type": "string",
+          "description": "Reference to Round. (Relationship: Round 1:N Score)"
+        },
+        "participantId": {
+          "type": "string",
+          "description": "Reference to Participant. (Relationship: Participant 1:N Score)"
+        },
+        "judgeId": {
+          "type": "string",
+          "description": "Reference to the user ID of the judge."
+        },
+        "clarity": {
+          "type": "number",
+          "description": "Score for clarity (0-10)."
+        },
+        "objections": {
+          "type": "number",
+          "description": "Score for handling objections (0-10)."
+        },
+        "energy": {
+          "type": "number",
+          "description": "Score for connection/energy (0-10)."
+        },
+        "fit": {
+          "type": "number",
+          "description": "Score for fit to product (0-10)."
+        },
+        "feedback": {
+          "type": "string",
+          "description": "Feedback from the judge."
+        },
+        "total": {
+          "type": "number",
+          "description": "Total score (calculated)."
+        }
+      },
+      "required": [
+        "id",
+        "eventId",
+        "roundId",
+        "participantId",
+        "judgeId",
+        "clarity",
+        "objections",
+        "energy",
+        "fit",
+        "total"
+      ]
+    }
+  },
+  "auth": {
+    "providers": []
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/events/{eventId}",
+        "definition": {
+          "entityName": "Event",
+          "schema": {
+            "$ref": "#/backend/entities/Event"
+          },
+          "description": "Stores event details. Admin-created. Includes the unique event code for joining.",
+          "params": [
+            {
+              "name": "eventId",
+              "description": "Unique identifier for the event."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/events/{eventId}/rounds/{roundId}",
+        "definition": {
+          "entityName": "Round",
+          "schema": {
+            "$ref": "#/backend/entities/Round"
+          },
+          "description": "Rounds within a specific event. Contains details such as duration, product, and customer mode. Includes denormalized 'eventId' for authorization independence.",
+          "params": [
+            {
+              "name": "eventId",
+              "description": "Unique identifier for the event."
+            },
+            {
+              "name": "roundId",
+              "description": "Unique identifier for the round."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/events/{eventId}/participants/{participantId}",
+        "definition": {
+          "entityName": "Participant",
+          "schema": {
+            "$ref": "#/backend/entities/Participant"
+          },
+          "description": "Participants associated with a specific event.  Includes denormalized 'eventId' for authorization independence.",
+          "params": [
+            {
+              "name": "eventId",
+              "description": "Unique identifier for the event."
+            },
+            {
+              "name": "participantId",
+              "description": "Unique identifier for the participant."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/events/{eventId}/scores/{scoreId}",
+        "definition": {
+          "entityName": "Score",
+          "schema": {
+            "$ref": "#/backend/entities/Score"
+          },
+          "description": "Scores awarded by judges to participants in a specific round. Includes denormalized 'eventId', 'roundId', and 'participantId' for authorization independence.",
+          "params": [
+            {
+              "name": "eventId",
+              "description": "Unique identifier for the event."
+            },
+            {
+              "name": "scoreId",
+              "description": "Unique identifier for the score."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to support the Aviva Sales Challenge application, prioritizing authorization independence, clarity, and security. The design incorporates denormalization to avoid hierarchical authorization dependencies and structural segregation to simplify security rules. The use of path-based ownership and membership maps enables secure list operations.\n\n*   `/events/{eventId}`: Stores event details. An admin creates events.\n*   `/events/{eventId}/rounds/{roundId}`: Rounds are subcollections of events to represent the different rounds within an event.\n*   `/events/{eventId}/participants/{participantId}`: Participants related to an event. Useful for listing participants within a specific event.\n*   `/events/{eventId}/scores/{scoreId}`: Scores given by judges for a participant's performance in a round. The `eventId` is denormalized in each `score` document to allow listing of all scores within an event without requiring a collection group query.\n\n**Authorization Independence and QAPs:**\n\n*   Authorization Independence is achieved by avoiding the need to fetch parent document data to determine access to subcollection documents. For example, the `Score` document contains `eventId`, `roundId`, `participantId`, and `judgeId` directly. This allows security rules to validate access based on the document's own data, the user's `uid`, and/or existence checks in dedicated collections without using `get()` calls.\n\n*   Secure list operations (QAPs) are enabled through structural segregation. For instance, scores are stored with the event id to allow for listing all scores in an event. The security rules can then authorize the `list` operation based on the user's role (e.g., admin or judge).\n\nThis structure also facilitates easy debugging because the authorization logic is explicit and localized within each document, making it easier to understand and verify the security rules."
+  }
+}

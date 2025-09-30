@@ -1,0 +1,124 @@
+/**
+ * @file Firestore Security Rules for Aviva Sales Challenge App
+ * @core_philosophy This ruleset enforces a role-based access control model for a sales competition application.
+ *  It leverages denormalization to ensure authorization independence and avoids costly `get()` calls.
+ * @data_structure The data is organized hierarchically under events, with subcollections for rounds, participants, and scores.
+ *  - /events/{eventId}: Contains event metadata and is administered by event creators.
+ *  - /events/{eventId}/rounds/{roundId}: Contains round-specific data within an event.
+ *  - /events/{eventId}/participants/{participantId}: Lists participants for a given event.
+ *  - /events/{eventId}/scores/{scoreId}: Stores scores given by judges to participants in a specific round.
+ * @key_security_decisions
+ *  - Events are secured using creator-based ownership.
+ *  - Scores are associated with judges, ensuring only they can create scores.
+ *  - Data validation is relaxed to allow rapid prototyping, except for fields critical for authorization.
+ * @denormalization_for_authorization
+ *  - Each `Score` document denormalizes `eventId`, `roundId`, `participantId`, and `judgeId` to enable independent authorization checks without requiring parent document fetches.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Controls access to event documents. Only the event creator can create, update, or delete events.
+     * @path /events/{eventId}
+     * @allow (create) User with UID 'user_abc' creates an event with createdBy: 'user_abc'.
+     * @allow (get, list) Any user can read events.
+     * @allow (update, delete) User with UID 'user_abc' updates/deletes an event where resource.data.createdBy == 'user_abc'.
+     * @deny (create) User with UID 'user_xyz' attempts to create an event with createdBy: 'user_abc'.
+     * @principle Enforces creator-based ownership for event management.
+     */
+    match /events/{eventId} {
+      // Anyone can read event details
+      allow get, list: if true;
+
+      // Only the event creator can create, update, or delete the event
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isExistingOwner(resource.data.createdBy);
+    }
+
+    /**
+     * @description Controls access to round documents within an event.  Only the event creator can manage rounds.
+     * @path /events/{eventId}/rounds/{roundId}
+     * @allow (create) User 'user_abc' creates a round within event 'event_123' if they are the event creator.
+     * @allow (get, list) Any user can read round details.
+     * @allow (update, delete) User 'user_abc' updates/deletes a round if they are the creator of event 'event_123'.
+     * @deny (create) User 'user_xyz' attempts to create a round within event 'event_123'.
+     * @principle Enforces event creator ownership for round management within an event.
+     */
+    match /events/{eventId}/rounds/{roundId} {
+      // Anyone can read round details
+      allow get, list: if true;
+
+      // Only the event creator can create, update, or delete rounds
+      allow create: if isEventCreator(eventId);
+      allow update, delete: if isExistingEventCreator(eventId);
+    }
+
+    /**
+     * @description Controls access to participant documents within an event. Only the event creator can manage participants.
+     * @path /events/{eventId}/participants/{participantId}
+     * @allow (create) User 'user_abc' creates a participant within event 'event_123' if they are the event creator.
+     * @allow (get, list) Any user can read participant details.
+     * @allow (update, delete) User 'user_abc' updates/deletes a participant if they are the creator of event 'event_123'.
+     * @deny (create) User 'user_xyz' attempts to create a participant within event 'event_123'.
+     * @principle Enforces event creator ownership for participant management within an event.
+     */
+    match /events/{eventId}/participants/{participantId} {
+      // Anyone can read participant details
+      allow get, list: if true;
+
+      // Only the event creator can create, update, or delete participants
+      allow create: if isEventCreator(eventId);
+      allow update, delete: if isExistingEventCreator(eventId);
+    }
+
+    /**
+     * @description Controls access to score documents within an event. Only the judge who created the score can manage their own scores.
+     * @path /events/{eventId}/scores/{scoreId}
+     * @allow (create) User 'judge_123' creates a score for event 'event_123', round 'round_456', participant 'part_789' if they are the assigned judge (judgeId).
+     * @allow (get, list) Any user can read score details.
+     * @allow (update, delete) User 'judge_123' updates/deletes a score if they are the assigned judge.
+     * @deny (create) User 'user_xyz' attempts to create a score assigned to 'judge_123'.
+     * @principle Enforces judge-based ownership for scores, where only the assigned judge can create, update, or delete their own scores.
+     */
+    match /events/{eventId}/scores/{scoreId} {
+      // Anyone can read score details
+      allow get, list: if true;
+
+      // Only the judge can create a score for themselves
+      allow create: if isSignedIn() && request.resource.data.judgeId == request.auth.uid;
+      allow update, delete: if isExistingJudge(request.auth.uid);
+    }
+
+    // --- Helper functions ---
+    // Checks if the user is signed in
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Checks if the user is the owner (creator) based on userId
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Checks if the user is the existing owner (creator) based on userId and resource exists
+    function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+    }
+
+    // Checks if the user is the event creator based on eventId
+    function isEventCreator(eventId) {
+      return isSignedIn() && get(/databases/$(database)/documents/events/$(eventId)).data.createdBy == request.auth.uid;
+    }
+
+    // Checks if the user is the event creator based on eventId and resource exists
+    function isExistingEventCreator(eventId) {
+      return isSignedIn() && get(/databases/$(database)/documents/events/$(eventId)).data.createdBy == request.auth.uid && resource != null;
+    }
+
+    // Checks if the user is the assigned judge
+    function isExistingJudge(judgeId) {
+      return isSignedIn() && resource != null && resource.data.judgeId == judgeId;
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "placeholderImages": [
+    {
+      "id": "avatar-png",
+      "description": "AI conversational avatar",
+      "imageUrl": "https://images.unsplash.com/photo-1610409013012-21aed6283823?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxyb2JvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc1ODY3ODg1NXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "robot portrait"
+    },
+    {
+      "id": "aviva-logo",
+      "description": "Aviva brand logo",
+      "imageUrl": "https://images.crunchbase.com/image/upload/c_pad,f_auto,q_auto:eco,dpr_1/b34fd73568b34ce4a875b069f6eeda41",
+      "imageHint": "abstract green logo"
+    }
+  ]
+}
