@@ -2,42 +2,47 @@
 
 import { useEffect, useMemo, useState } from "react";
 import AvivaWordCloud, { WordDatum } from "@/components/AvivaWordCloud";
-import { db } from "@/config/firebase";
+import { useFirestore } from "@/firebase";
 import {
   collection,
   onSnapshot,
-  orderBy,
-  query,
-  limit as qLimit,
 } from "firebase/firestore";
 
 export default function LiveDisplayPage() {
+  const firestore = useFirestore();
   const [words, setWords] = useState<WordDatum[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    // Cambia "wordcloud" por la colección que estés usando realmente
-    // Estructura esperada del doc: { text: string, freq: number }
-    const q = query(
-      collection(db, "wordcloud"),
-      orderBy("freq", "desc"),
-      qLimit(300)
-    );
+    if (!firestore) return;
+    
+    // ✅ CORRECCIÓN 1: Nombre correcto de la colección
+    const q = collection(firestore, "wordCloud");
 
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const next: WordDatum[] = [];
+        // ✅ CORRECCIÓN 2: Agregar las palabras por frecuencia
+        const wordFrequency: Record<string, number> = {};
+        
         snap.forEach((doc) => {
-          const d = doc.data() as any;
-          const text = String(d?.text ?? "").trim();
-          const freq = Number(d?.freq ?? 0);
-          if (text && Number.isFinite(freq) && freq > 0) {
-            next.push({ text, freq });
+          const data = doc.data();
+          // Normalizar la palabra (minúsculas, sin espacios extra)
+          const word = String(data?.word ?? "").trim().toLowerCase();
+          
+          if (word) {
+            wordFrequency[word] = (wordFrequency[word] || 0) + 1;
           }
         });
-        setWords(next);
+
+        // Convertir a formato esperado por el componente
+        const wordData: WordDatum[] = Object.entries(wordFrequency)
+          .map(([text, freq]) => ({ text, freq }))
+          .sort((a, b) => b.freq - a.freq) // Ordenar por frecuencia
+          .slice(0, 300); // Limitar a 300 palabras
+
+        setWords(wordData);
         setLoading(false);
       },
       (e) => {
@@ -47,7 +52,7 @@ export default function LiveDisplayPage() {
     );
 
     return () => unsub();
-  }, []);
+  }, [firestore]);
 
   const content = useMemo(() => {
     if (loading) {
@@ -78,8 +83,18 @@ export default function LiveDisplayPage() {
 
   return (
     <main className="p-4 md:p-8">
-      <h1 className="text-2xl font-semibold mb-4">Live Display</h1>
-      {content}
+      <h1 className="text-2xl font-semibold mb-4">Live Display - Word Cloud</h1>
+      <div className="bg-white rounded-lg shadow-lg p-6">
+        {content}
+      </div>
+      
+      {/* Debug info - remover en producción */}
+      {!loading && !err && (
+        <div className="mt-4 text-sm text-gray-600">
+          <p>Total de palabras únicas: {words.length}</p>
+          <p>Total de entradas: {words.reduce((sum, w) => sum + w.freq, 0)}</p>
+        </div>
+      )}
     </main>
   );
 }
