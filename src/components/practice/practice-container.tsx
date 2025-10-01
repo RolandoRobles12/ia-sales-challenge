@@ -30,16 +30,29 @@ export default function PracticeContainer() {
     setConversation(prev => {
       const last = prev[prev.length - 1];
       
-      if (!isUser && last?.sender === 'avatar' && last.isLoading) {
-        return prev.map((msg, idx) => 
-          idx === prev.length - 1 
-            ? { ...msg, text: msg.text + message, isLoading: false }
-            : msg
-        );
-      } else if (isUser) {
+      if (isUser) {
+        // Usuario: crear nuevo mensaje
         return [...prev, { sender: 'user', text: message }];
       } else {
-        return [...prev, { sender: 'avatar', text: message }];
+        // Avatar: si el último mensaje es del avatar y está loading, actualizar
+        // Si no, crear nuevo mensaje o acumular en el existente
+        if (last?.sender === 'avatar' && last.isLoading) {
+          return prev.map((msg, idx) => 
+            idx === prev.length - 1 
+              ? { ...msg, text: msg.text + message, isLoading: false }
+              : msg
+          );
+        } else if (last?.sender === 'avatar' && !last.isLoading) {
+          // Si ya existe un mensaje del avatar completo, seguir acumulando
+          return prev.map((msg, idx) => 
+            idx === prev.length - 1 
+              ? { ...msg, text: msg.text + message }
+              : msg
+          );
+        } else {
+          // Crear nuevo mensaje del avatar
+          return [...prev, { sender: 'avatar', text: message, isLoading: false }];
+        }
       }
     });
   }, []);
@@ -65,7 +78,7 @@ export default function PracticeContainer() {
     setProduct(settings.product);
     setMode(settings.mode);
     
-    const initialMessage = 'Hola, ¿qué me ofreces?';
+    const initialMessage = 'Hola.';
     setConversation([{ sender: 'avatar', text: initialMessage }]);
 
     setGameState('pitching');
@@ -155,7 +168,7 @@ export default function PracticeContainer() {
       } else if (gameState === 'objections') {
         toast({ 
           title: '¡Se acabó el tiempo!', 
-          description: 'La simulación ha terminado.' 
+          description: 'La simulación ha terminada.' 
         });
         setGameState('finished');
         

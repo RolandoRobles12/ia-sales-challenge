@@ -51,37 +51,54 @@ export default function useOpenAIVoiceAgent({
       Apurado: 'cortante, con prisa, quiere lo esencial',
     };
 
-    return `IMPORTANTE: TÚ ERES EL CLIENTE. EL USUARIO QUE TE HABLA ES EL VENDEDOR.
+    return `# CRITICAL RULE - READ THIS FIRST
+YOU ARE THE CUSTOMER. The user speaking to you is THE SALESPERSON.
+NEVER act as a salesperson or advisor. NEVER offer help or information about products.
+ALWAYS respond in SPANISH (español mexicano).
 
-# Tu Rol
-Eres un **cliente mexicano** que está considerando ${product} de Aviva Crédito.
-- Perfil: microempresario o trabajador con ingresos limitados
-- El usuario que te habla es el VENDEDOR que intenta convencerte
-- Tu trabajo es ESCUCHAR su pitch y RESPONDER como cliente real
+# Your Identity
+You are a potential Mexican customer considering "${product}" from Aviva Crédito.
+- Profile: Small business owner or worker with limited income
+- The USER is trying to SELL to YOU
+- Your job: LISTEN to their pitch and RESPOND as a real skeptical customer would
+- Language: ALWAYS speak in Spanish (Mexico)
 
-# Cómo actuar
-1. ESCUCHA lo que el vendedor (el usuario) te dice
-2. RESPONDE de forma breve (máximo 2 oraciones, 25 palabras)
-3. HAZ preguntas y objeciones realistas:
-   - "¿Cuánto tengo que pagar cada semana?"
-   - "Suena caro. ¿Hay algo más barato?"
-   - "No confío en esto, ya me han estafado antes"
-   - "No tengo tiempo, dime lo importante"
-4. NUNCA actúes como vendedor o asesor
-5. NUNCA des información sobre productos, tasas o procesos
-6. Solo PREGUNTA y OBJETA como lo haría un cliente real
+# How to Act
+1. LISTEN to what the salesperson (user) tells you
+2. RESPOND briefly in SPANISH (max 2 sentences, 25 words)
+3. ASK questions and raise realistic objections in SPANISH:
+   - "¿Cuánto cuesta exactamente?"
+   - "Suena muy caro"
+   - "No confío en esto"
+   - "No tengo tiempo, rápido"
+4. NEVER act as advisor/helper
+5. NEVER provide product information or explain processes
+6. ONLY ask questions and object like a real Mexican customer
 
-# Tu personalidad: ${mode}
+# Your Personality: ${mode}
 ${modeDetails[mode]}
 
-# Ejemplo de conversación correcta:
-Vendedor (usuario): "Buenos días, le presento Aviva Contigo, un crédito..."
-Tú (cliente): "Mmm, ¿y cuánto me cuesta eso?"
+# WRONG Examples (DO NOT DO THIS):
+❌ User: "Hola"
+❌ You: "Hola, ¿qué me ofreces? ¿Puedo ayudarte?" ← WRONG! You're acting as helper
+❌ You: "Thank you very much" ← WRONG! Always Spanish
+❌ You: "그만" ← WRONG! Always Spanish
 
-Vendedor (usuario): "Las tasas son muy competitivas..."
-Tú (cliente): "Eso no me dice nada. Dame números reales."
+# CORRECT Examples:
+✅ User: "Le presento Aviva Contigo..."
+✅ You: "¿Y eso cuánto cuesta?"
 
-RECUERDA: Tú eres el CLIENTE. El usuario es el VENDEDOR. Solo escucha y responde.`;
+✅ User: "Las tasas son competitivas..."
+✅ You: "No entiendo, dame números reales"
+
+✅ User: "Gracias por su tiempo"
+✅ You: "Ok, gracias"
+
+REMEMBER: 
+- You are the CUSTOMER being sold to
+- The user is the SALESPERSON
+- ALWAYS respond in Spanish (México)
+- React naturally to their pitch with questions and doubts`;
   }, [product, mode]);
 
   const disconnect = useCallback(() => {
@@ -133,7 +150,7 @@ RECUERDA: Tú eres el CLIENTE. El usuario es el VENDEDOR. Solo escucha y respond
       setState(prev => ({ ...prev, isConnected: false, error: null }));
       console.log('🔄 Iniciando conexión con OpenAI Realtime API (WebRTC)...');
 
-      // Get ephemeral token
+      // Paso 1: Get ephemeral token
       const tokenResponse = await fetch('/api/openai/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -148,13 +165,13 @@ RECUERDA: Tú eres el CLIENTE. El usuario es el VENDEDOR. Solo escucha y respond
       const { ephemeral_token } = await tokenResponse.json();
       console.log('✅ Token efímero obtenido');
 
-      // Create PeerConnection
+      // Paso 2: Create PeerConnection
       const pc = new RTCPeerConnection({
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
       });
       peerConnectionRef.current = pc;
 
-      // Setup microphone
+      // Paso 3: Setup microphone
       console.log('🎤 Solicitando acceso al micrófono...');
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
@@ -167,10 +184,16 @@ RECUERDA: Tú eres el CLIENTE. El usuario es el VENDEDOR. Solo escucha y respond
       });
       
       const audioTrack = stream.getAudioTracks()[0];
+      console.log('🎤 Track de audio configurado:', {
+        label: audioTrack.label,
+        enabled: audioTrack.enabled,
+        settings: audioTrack.getSettings(),
+      });
+      
       pc.addTrack(audioTrack, stream);
-      console.log('✅ Micrófono configurado');
+      console.log('✅ Micrófono agregado a PeerConnection');
 
-      // Setup audio output
+      // Paso 4: Setup audio output
       const audioEl = document.createElement('audio');
       audioEl.autoplay = true;
       audioEl.id = 'openai-audio-output';
@@ -178,18 +201,27 @@ RECUERDA: Tú eres el CLIENTE. El usuario es el VENDEDOR. Solo escucha y respond
       document.body.appendChild(audioEl);
 
       pc.ontrack = (e) => {
+        console.log('🔊 Track recibido:', e.track.kind);
         if (e.track.kind === 'audio') {
           audioEl.srcObject = e.streams[0];
-          console.log('✅ Audio conectado');
+          console.log('✅ Audio de salida conectado');
         }
       };
 
-      // Create data channel BEFORE creating offer
+      pc.oniceconnectionstatechange = () => {
+        console.log('🔗 ICE Connection State:', pc.iceConnectionState);
+      };
+
+      pc.onconnectionstatechange = () => {
+        console.log('🔗 Connection State:', pc.connectionState);
+      };
+
+      // Paso 5: Create data channel BEFORE creating offer
       const dc = pc.createDataChannel('oai-events');
       dataChannelRef.current = dc;
 
       dc.addEventListener('open', () => {
-        console.log('✅ Data channel abierto');
+        console.log('✅ Data channel abierto - Enviando configuración');
         
         const sessionConfig = {
           type: 'session.update',
@@ -200,12 +232,18 @@ RECUERDA: Tú eres el CLIENTE. El usuario es el VENDEDOR. Solo escucha y respond
             input_audio_format: 'pcm16',
             output_audio_format: 'pcm16',
             input_audio_transcription: { model: 'whisper-1' },
-            turn_detection: null,
+            turn_detection: {
+              type: 'server_vad',
+              threshold: 0.5,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 700,
+            },
             temperature: 0.8,
-            max_response_output_tokens: 4096,
+            max_response_output_tokens: 150, // Limitar respuestas cortas
           },
         };
 
+        console.log('📤 Configuración enviada');
         dc.send(JSON.stringify(sessionConfig));
       });
 
@@ -213,28 +251,53 @@ RECUERDA: Tú eres el CLIENTE. El usuario es el VENDEDOR. Solo escucha y respond
         try {
           const event = JSON.parse(e.data);
           
+          // Log solo eventos importantes (no deltas)
+          if (!event.type.includes('.delta') && event.type !== 'input_audio_buffer.append') {
+            console.log('📨 Evento:', event.type);
+          }
+          
           switch (event.type) {
+            case 'session.created':
+              console.log('✅ Sesión creada:', event.session?.id);
+              break;
+
             case 'session.updated':
+              console.log('✅ Sesión actualizada - Listo para usar');
               setState(prev => ({ ...prev, isConnected: true }));
               isConnectingRef.current = false;
-              console.log('✅ Sesión actualizada - Listo para usar');
               break;
 
             case 'input_audio_buffer.speech_started':
+              console.log('🎤 Usuario empezó a hablar');
               setState(prev => ({ ...prev, isListening: true }));
               break;
 
             case 'input_audio_buffer.speech_stopped':
+              console.log('🎤 Usuario dejó de hablar');
               setState(prev => ({ ...prev, isListening: false }));
               break;
 
+            case 'input_audio_buffer.committed':
+              console.log('✅ Audio confirmado');
+              break;
+
+            case 'conversation.item.created':
+              if (event.item?.role === 'user') {
+                console.log('💬 Mensaje del usuario registrado');
+              } else if (event.item?.role === 'assistant') {
+                console.log('💬 El agente preparando respuesta...');
+              }
+              break;
+
             case 'conversation.item.input_audio_transcription.completed':
+              console.log('📝 Transcripción:', event.transcript);
               if (event.transcript && onMessageRef.current) {
                 onMessageRef.current(event.transcript, true);
               }
               break;
 
             case 'response.created':
+              console.log('🤖 Generando respuesta...');
               setState(prev => ({ ...prev, isSpeaking: true }));
               break;
 
@@ -244,12 +307,17 @@ RECUERDA: Tú eres el CLIENTE. El usuario es el VENDEDOR. Solo escucha y respond
               }
               break;
 
+            case 'response.audio_transcript.done':
+              console.log('🤖 Respuesta completa:', event.transcript);
+              break;
+
             case 'response.done':
+              console.log('✅ Respuesta completada');
               setState(prev => ({ ...prev, isSpeaking: false }));
               break;
 
             case 'error':
-              console.error('❌ ERROR:', event.error);
+              console.error('❌ ERROR del agente:', event.error);
               toast({
                 variant: 'destructive',
                 title: 'Error del agente',
@@ -262,10 +330,17 @@ RECUERDA: Tú eres el CLIENTE. El usuario es el VENDEDOR. Solo escucha y respond
         }
       });
 
-      // Create and send SDP offer
+      dc.addEventListener('error', (error) => {
+        console.error('❌ Error en data channel:', error);
+      });
+
+      // Paso 6: Create and send SDP offer
+      console.log('📝 Creando oferta SDP...');
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
+      console.log('✅ Oferta SDP establecida localmente');
 
+      console.log('📤 Enviando oferta a OpenAI...');
       const sdpResponse = await fetch('https://api.openai.com/v1/realtime', {
         method: 'POST',
         headers: {
@@ -276,13 +351,18 @@ RECUERDA: Tú eres el CLIENTE. El usuario es el VENDEDOR. Solo escucha y respond
       });
 
       if (!sdpResponse.ok) {
+        const errorText = await sdpResponse.text();
+        console.error('❌ Error en handshake SDP:', errorText);
         throw new Error(`Error en handshake SDP: ${sdpResponse.status}`);
       }
 
+      // Paso 7: Apply SDP answer
       const answerSdp = await sdpResponse.text();
+      console.log('📥 Respuesta SDP recibida');
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
 
-      console.log('✅ Conexión establecida');
+      console.log('✅ ✅ ✅ Conexión WebRTC establecida completamente');
+      console.log('🎯 El agente está listo - Presiona el botón para hablar');
 
     } catch (error) {
       console.error('❌ Error conectando:', error);
@@ -307,16 +387,22 @@ RECUERDA: Tú eres el CLIENTE. El usuario es el VENDEDOR. Solo escucha y respond
 
   const startListening = useCallback(() => {
     if (dataChannelRef.current?.readyState === 'open') {
+      console.log('🎤 Iniciando captura (botón presionado)');
       setState(prev => ({ ...prev, isListening: true }));
     }
   }, []);
 
   const stopListening = useCallback(() => {
     if (dataChannelRef.current?.readyState === 'open') {
+      console.log('🎤 Botón soltado - Procesando audio...');
+      
+      // Confirmar el audio capturado
       dataChannelRef.current.send(JSON.stringify({
         type: 'input_audio_buffer.commit'
       }));
       
+      console.log('📤 Solicitando respuesta del agente...');
+      // Solicitar respuesta
       dataChannelRef.current.send(JSON.stringify({
         type: 'response.create',
         response: {
