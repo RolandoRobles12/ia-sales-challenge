@@ -1,3 +1,4 @@
+// src/components/practice/settings-form.tsx
 'use client';
 
 import { useState } from 'react';
@@ -6,34 +7,55 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import type { Product, Mode } from '@/types';
-import { PlayCircle, Mic } from 'lucide-react';
+import type { Product, Mode, DifficultyLevel } from '@/types';
+import { PlayCircle, Mic, Loader2 } from 'lucide-react';
 
 interface SettingsFormProps {
-  onStart: (settings: { product: Product; mode: Mode }) => void;
+  onStart: (settings: { product: Product; mode: Mode; difficultyLevel: DifficultyLevel }) => void;
   useVoiceAgent?: boolean;
   onToggleVoiceAgent?: (value: boolean) => void;
+  isGeneratingProfile?: boolean;
 }
 
 const products: Product[] = ['Aviva Contigo', 'Aviva Tu Negocio', 'Aviva Tu Casa', 'Aviva Tu Compra'];
 const modes: Mode[] = ['Curioso', 'Desconfiado', 'Apurado'];
-const modeDescriptions = {
+const difficultyLevels: DifficultyLevel[] = [
+  'Fácil', 
+  'Intermedio', 
+  'Difícil', 
+  'Avanzado', 
+  'Súper Embajador', 
+  'Leyenda'
+];
+
+const modeDescriptions: Record<Mode, string> = {
   Curioso: 'Un cliente que muestra interés y hace muchas preguntas.',
   Desconfiado: 'Un cliente escéptico que necesita garantías y pruebas.',
   Apurado: 'Un cliente con poco tiempo que busca soluciones rápidas y directas.'
 };
 
+const difficultyDescriptions: Record<DifficultyLevel, string> = {
+  'Fácil': '🟢 Cliente accesible con objeciones básicas. Ideal para principiantes.',
+  'Intermedio': '🟡 Cliente escéptico con preguntas elaboradas. Requiere buenos argumentos.',
+  'Difícil': '🟠 Cliente crítico que compara y cuestiona todo. Para vendedores con experiencia.',
+  'Avanzado': '🔴 Cliente analítico que pide cifras exactas. Nivel avanzado.',
+  'Súper Embajador': '🟣 Cliente muy difícil con malas experiencias previas. Nivel experto.',
+  'Leyenda': '⚫ Cliente prácticamente imposible. Solo para maestros de ventas.'
+};
+
 export default function SettingsForm({ 
   onStart, 
   useVoiceAgent = true, 
-  onToggleVoiceAgent 
+  onToggleVoiceAgent,
+  isGeneratingProfile = false 
 }: SettingsFormProps) {
   const [product, setProduct] = useState<Product>('Aviva Contigo');
   const [mode, setMode] = useState<Mode>('Curioso');
+  const [difficultyLevel, setDifficultyLevel] = useState<DifficultyLevel>('Fácil');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onStart({ product, mode });
+    onStart({ product, mode, difficultyLevel });
   };
 
   return (
@@ -42,11 +64,12 @@ export default function SettingsForm({
         <CardHeader>
           <CardTitle className="text-2xl font-headline">Configura tu práctica</CardTitle>
           <CardDescription>
-            Elige el producto que vas a vender y la personalidad del cliente.
+            Elige el producto, personalidad del cliente y nivel de dificultad.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Producto */}
             <div className="space-y-2">
               <Label htmlFor="product-select" className="text-lg">Producto</Label>
               <Select value={product} onValueChange={(value) => setProduct(value as Product)}>
@@ -63,6 +86,7 @@ export default function SettingsForm({
               </Select>
             </div>
 
+            {/* Modo del Cliente */}
             <div className="space-y-2">
               <Label htmlFor="mode-select" className="text-lg">Modo del Cliente</Label>
               <Select value={mode} onValueChange={(value) => setMode(value as Mode)}>
@@ -80,6 +104,25 @@ export default function SettingsForm({
               <p className="text-sm text-muted-foreground">{modeDescriptions[mode]}</p>
             </div>
 
+            {/* Nivel de Dificultad */}
+            <div className="space-y-2">
+              <Label htmlFor="difficulty-select" className="text-lg">Nivel de Dificultad</Label>
+              <Select value={difficultyLevel} onValueChange={(value) => setDifficultyLevel(value as DifficultyLevel)}>
+                <SelectTrigger id="difficulty-select" className="w-full">
+                  <SelectValue placeholder="Selecciona la dificultad" />
+                </SelectTrigger>
+                <SelectContent>
+                  {difficultyLevels.map((level) => (
+                    <SelectItem key={level} value={level}>
+                      {level}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">{difficultyDescriptions[difficultyLevel]}</p>
+            </div>
+
+            {/* Toggle Agente de Voz */}
             {onToggleVoiceAgent && (
               <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
                 <div className="space-y-0.5">
@@ -100,8 +143,19 @@ export default function SettingsForm({
               </div>
             )}
 
-            <Button type="submit" size="lg" className="w-full font-bold">
-              {useVoiceAgent ? (
+            {/* Botón de Inicio */}
+            <Button 
+              type="submit" 
+              size="lg" 
+              className="w-full font-bold"
+              disabled={isGeneratingProfile}
+            >
+              {isGeneratingProfile ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Generando perfil del cliente...
+                </>
+              ) : useVoiceAgent ? (
                 <>
                   <Mic className="mr-2 h-5 w-5" />
                   Iniciar con Agente de Voz
