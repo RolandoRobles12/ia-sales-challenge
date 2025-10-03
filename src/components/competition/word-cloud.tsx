@@ -37,31 +37,48 @@ export function WordCloudInput({ groupNumber, onSubmit, disabled, hasSubmitted }
 
   if (hasSubmitted) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-4">
-        ✓ Ya enviaste tu palabra para este grupo
-      </p>
+      <div className="text-center py-8">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-100 mb-4">
+          <MessageSquare className="h-8 w-8 text-emerald-600" />
+        </div>
+        <p className="text-lg font-semibold text-emerald-700">✓ Palabra enviada</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Ya enviaste tu palabra para este grupo
+        </p>
+      </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2">
-      <Input
-        type="text"
-        value={word}
-        onChange={(e) => setWord(e.target.value)}
-        placeholder="Una palabra..."
-        maxLength={30}
-        disabled={disabled || isSubmitting}
-        className="flex-1"
-      />
-      <Button 
-        type="submit" 
-        size="icon"
-        disabled={!word.trim() || disabled || isSubmitting}
-      >
-        <Send className="h-4 w-4" />
-      </Button>
-    </form>
+    <div className="space-y-4">
+      <div className="text-center py-4">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
+          <MessageSquare className="h-8 w-8 text-primary" />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Comparte una palabra que describa lo que más te gustó de esta presentación
+        </p>
+      </div>
+      
+      <form onSubmit={handleSubmit} className="flex gap-2">
+        <Input
+          type="text"
+          value={word}
+          onChange={(e) => setWord(e.target.value)}
+          placeholder="Una palabra..."
+          maxLength={30}
+          disabled={disabled || isSubmitting}
+          className="flex-1 text-lg"
+        />
+        <Button 
+          type="submit" 
+          size="lg"
+          disabled={!word.trim() || disabled || isSubmitting}
+        >
+          <Send className="h-5 w-5" />
+        </Button>
+      </form>
+    </div>
   );
 }
 
@@ -81,14 +98,11 @@ export function WordCloudDisplay({ words, animated = true }: WordCloudDisplayPro
     const width = 800;
     const height = 500;
 
-    // Calcular min y max
     const maxCount = Math.max(...words.map(w => w.count));
     const minCount = Math.min(...words.map(w => w.count));
 
-    // Limpiar SVG anterior
     d3.select(svgRef.current).selectAll('*').remove();
 
-    // Gradiente de colores premium Aviva
     const colorScale = d3.scaleLinear<string>()
       .domain([0, 0.25, 0.5, 0.75, 1])
       .range([
@@ -99,29 +113,26 @@ export function WordCloudDisplay({ words, animated = true }: WordCloudDisplayPro
         '#0284c7', // sky-600
       ]);
 
-    // Escala de tamaños más dramática
     const fontSizeScale = d3.scalePow()
       .exponent(0.8)
       .domain([minCount || 1, maxCount])
       .range([18, 90]);
 
-    // Preparar datos para d3-cloud
     const cloudWords = words.map(w => ({
       text: w.word,
       size: fontSizeScale(w.count),
       count: w.count,
     }));
 
-    // Configurar layout
     const layout = cloud()
       .size([width, height])
       .words(cloudWords as any)
       .padding(10)
       .rotate(() => {
         const random = Math.random();
-        if (random < 0.7) return 0; // 70% horizontal
-        if (random < 0.85) return -30; // 15% diagonal suave
-        return 30; // 15% diagonal suave opuesta
+        if (random < 0.7) return 0;
+        if (random < 0.85) return -30;
+        return 30;
       })
       .font('PT Sans, system-ui, sans-serif')
       .fontSize(d => d.size!)
@@ -133,7 +144,6 @@ export function WordCloudDisplay({ words, animated = true }: WordCloudDisplayPro
     function draw(calculatedWords: any[]) {
       const svg = d3.select(svgRef.current);
 
-      // Gradiente radial de fondo
       const defs = svg.append('defs');
       
       const radialGradient = defs.append('radialGradient')
@@ -214,7 +224,6 @@ export function WordCloudDisplay({ words, animated = true }: WordCloudDisplayPro
         text.style('opacity', 0.92);
       }
 
-      // Tooltip mejorado
       const tooltip = svg
         .append('g')
         .attr('class', 'tooltip')
@@ -289,7 +298,6 @@ export function WordCloudDisplay({ words, animated = true }: WordCloudDisplayPro
       className="relative bg-gradient-to-br from-teal-50 via-white to-emerald-50 rounded-2xl border-2 border-teal-200 shadow-2xl overflow-hidden"
       style={{ minHeight: '500px' }}
     >
-      {/* Efectos de fondo decorativos */}
       <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden">
         <div className="absolute top-10 left-10 w-64 h-64 bg-gradient-to-br from-teal-200/30 to-emerald-200/30 rounded-full blur-3xl"></div>
         <div className="absolute bottom-10 right-10 w-80 h-80 bg-gradient-to-br from-cyan-200/30 to-sky-200/30 rounded-full blur-3xl"></div>
@@ -342,21 +350,19 @@ export function GroupWordCloudCard({
     <Card className="border-emerald-200">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-emerald-700">
-          <MessageSquare className="h-5 w-5" />
           Grupo {groupNumber} - Word Cloud
         </CardTitle>
         <CardDescription>
           ¿Qué es lo que más te gustó? (Una palabra)
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent>
         <WordCloudInput
           groupNumber={groupNumber}
           onSubmit={onSubmit}
           disabled={disabled}
           hasSubmitted={hasUserSubmitted}
         />
-        <WordCloudDisplay words={words} />
       </CardContent>
     </Card>
   );

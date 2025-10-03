@@ -1,3 +1,4 @@
+// src/components/practice/simulation-view.tsx
 'use client';
 
 import type { Product, Mode, ConversationMessage } from '@/types';
@@ -23,6 +24,8 @@ interface SimulationViewProps {
   voiceAgentListening?: boolean;
   onStartVoiceAgentListening?: () => void;
   onStopVoiceAgentListening?: () => void;
+  pitchDuration: number;
+  qnaDuration: number;
 }
 
 export default function SimulationView({ 
@@ -39,6 +42,8 @@ export default function SimulationView({
   voiceAgentListening = false,
   onStartVoiceAgentListening,
   onStopVoiceAgentListening,
+  pitchDuration,
+  qnaDuration,
 }: SimulationViewProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -48,9 +53,7 @@ export default function SimulationView({
     }
   }, [conversation]);
 
-  const pitchDuration = 120;
-  const objectionsDuration = 60;
-  const currentDuration = gameState === 'pitching' ? pitchDuration : objectionsDuration;
+  const currentDuration = gameState === 'pitching' ? pitchDuration : qnaDuration;
   
   return (
     <div className="container mx-auto p-4 h-[calc(100vh-100px)]">

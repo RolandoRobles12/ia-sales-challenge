@@ -6,6 +6,14 @@ export type DifficultyLevel = 'Fácil' | 'Intermedio' | 'Difícil' | 'Avanzado' 
 // Grupos de competencia
 export type GroupNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 
+export interface PracticeSettings {
+  product: Product;
+  mode: Mode;
+  difficultyLevel: DifficultyLevel;
+  pitchDuration: number; // en segundos
+  qnaDuration: number; // en segundos
+}
+
 export interface CustomerProfile {
   name: string;
   age: number;
@@ -51,7 +59,7 @@ export interface SimulationSession {
   duration: number;
 }
 
-// NUEVO: Calificación con estrellas
+// Calificación con estrellas
 export interface StarRating {
   id: string;
   groupNumber: GroupNumber;
@@ -60,7 +68,7 @@ export interface StarRating {
   createdAt: any; // Firestore timestamp
 }
 
-// NUEVO: Palabra del word cloud
+// Palabra del word cloud
 export interface WordCloudEntry {
   id: string;
   groupNumber: GroupNumber;
@@ -69,7 +77,7 @@ export interface WordCloudEntry {
   createdAt: any; // Firestore timestamp
 }
 
-// NUEVO: Estadísticas agregadas por grupo
+// Estadísticas agregadas por grupo
 export interface GroupStats {
   groupNumber: GroupNumber;
   averageStars: number;
@@ -77,22 +85,22 @@ export interface GroupStats {
   wordCloud: { word: string; count: number }[];
 }
 
-// NUEVO: Configuración de votación
+// Configuración de votación
 export interface VotingConfig {
   isOpen: boolean;
   closeTime?: any; // Firestore Timestamp
   openTime?: any; // Firestore Timestamp
 }
+
+// User roles
+export type UserRole = 'admin' | 'user';
+
+export interface UserProfile {
   id: string;
-  userId: string;
-  userName: string;
-  product: Product;
-  text: string;
-  evaluation: PitchEvaluation;
-  upvotes: number;
-  downvotes: number;
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  role: UserRole;
   createdAt: any;
-  votes?: { [userId: string]: 'up' | 'down' };
-  sessionId: string;
-  groupNumber?: GroupNumber; // NUEVO: Asignar grupo al pitch
+  updatedAt?: any;
 }

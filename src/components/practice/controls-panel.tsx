@@ -43,7 +43,6 @@ export default function ControlsPanel({
   onStopVoiceAgentListening,
 }: ControlsPanelProps) {
   
-  // Memoize the callback to prevent re-creates
   const handleStop = useCallback((finalTranscript: string) => {
     onUserResponse(finalTranscript);
   }, [onUserResponse]);
@@ -54,8 +53,8 @@ export default function ControlsPanel({
 
   const isFinished = gameState === 'finished';
   
-  // For voice agent: can record if connected and not speaking
-  // For speech recognition: can record if not finished and not speaking
+  // Para voice agent: puede grabar si está conectado y no está hablando
+  // Para speech recognition: puede grabar si no ha terminado y no está hablando
   const canRecord = useVoiceAgent 
     ? voiceAgentConnected && !isAvatarSpeaking && !isFinished
     : !isFinished && !isAvatarSpeaking;
@@ -64,24 +63,33 @@ export default function ControlsPanel({
 
   const toggleRecording = useCallback(() => {
     if (useVoiceAgent) {
-      // Voice agent mode
-      if (voiceAgentListening && onStopVoiceAgentListening) {
-        onStopVoiceAgentListening();
-      } else if (canRecord && onStartVoiceAgentListening) {
-        onStartVoiceAgentListening();
+      // Voice agent mode - toggle on/off
+      if (isCurrentlyListening) {
+        // Si está escuchando, DETENER
+        if (onStopVoiceAgentListening) {
+          onStopVoiceAgentListening();
+        }
+      } else {
+        // Si NO está escuchando, INICIAR
+        if (canRecord && onStartVoiceAgentListening) {
+          onStartVoiceAgentListening();
+        }
       }
     } else {
-      // Speech recognition mode
-      if (isListening) {
+      // Speech recognition mode - toggle on/off
+      if (isCurrentlyListening) {
+        // Si está escuchando, DETENER
         stopRecognition();
-      } else if (canRecord) {
-        startRecognition();
+      } else {
+        // Si NO está escuchando, INICIAR
+        if (canRecord) {
+          startRecognition();
+        }
       }
     }
   }, [
     useVoiceAgent, 
-    voiceAgentListening, 
-    isListening, 
+    isCurrentlyListening,
     canRecord, 
     onStartVoiceAgentListening, 
     onStopVoiceAgentListening, 
@@ -160,9 +168,9 @@ export default function ControlsPanel({
               {isAvatarSpeaking 
                 ? 'El cliente IA está hablando...' 
                 : isCurrentlyListening 
-                  ? 'Grabando... (Presiona Espacio para parar)' 
+                  ? 'Grabando... (Presiona de nuevo o Espacio para parar)' 
                   : canRecord 
-                    ? 'Presiona para hablar (Espacio)' 
+                    ? 'Presiona para hablar (o Espacio)' 
                     : useVoiceAgent && !voiceAgentConnected
                       ? 'Conectando agente de voz...'
                       : ''}

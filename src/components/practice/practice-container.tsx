@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import type { Product, Mode, DifficultyLevel, ConversationMessage, CustomerProfile, PitchEvaluation } from '@/types';
+import type { Product, Mode, DifficultyLevel, ConversationMessage, CustomerProfile, PitchEvaluation, PracticeSettings } from '@/types';
 import SettingsForm from './settings-form';
 import SimulationView from './simulation-view';
 import EvaluationResults from './evaluation-results';
@@ -15,9 +15,6 @@ import useOpenAIVoiceAgent from '@/hooks/use-openai-voice-agent';
 
 type GameState = 'configuring' | 'generating-profile' | 'pitching' | 'objections' | 'evaluating' | 'finished';
 
-const PITCH_DURATION = 120;
-const OBJECTIONS_DURATION = 60;
-
 export default function PracticeContainer() {
   const [gameState, setGameState] = useState<GameState>('configuring');
   const [product, setProduct] = useState<Product>('Aviva Contigo');
@@ -25,7 +22,9 @@ export default function PracticeContainer() {
   const [difficultyLevel, setDifficultyLevel] = useState<DifficultyLevel>('Fácil');
   const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null);
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
-  const [timer, setTimer] = useState(PITCH_DURATION);
+  const [timer, setTimer] = useState(120);
+  const [pitchDuration, setPitchDuration] = useState(120);
+  const [qnaDuration, setQnaDuration] = useState(60);
   const [useVoiceAgent, setUseVoiceAgent] = useState(true);
   const [turnNumber, setTurnNumber] = useState(0);
   const [evaluation, setEvaluation] = useState<PitchEvaluation | null>(null);
@@ -33,7 +32,6 @@ export default function PracticeContainer() {
   const { toast } = useToast();
   const { speak, isSpeaking: isSpeakingTTS, stop: stopTTS } = useSpeechSynthesis();
 
-  // Memoize the onMessage callback to prevent hook re-initialization
   const handleVoiceAgentMessage = useCallback((message: string, isUser: boolean) => {
     setConversation(prev => {
       const last = prev[prev.length - 1];
@@ -77,16 +75,13 @@ export default function PracticeContainer() {
 
   const isSpeaking = useVoiceAgent ? voiceAgentSpeaking : isSpeakingTTS;
 
-  const handleStartPractice = useCallback(async (settings: { 
-    product: Product; 
-    mode: Mode; 
-    difficultyLevel: DifficultyLevel 
-  }) => {
+  const handleStartPractice = useCallback(async (settings: PracticeSettings) => {
     setProduct(settings.product);
     setMode(settings.mode);
     setDifficultyLevel(settings.difficultyLevel);
+    setPitchDuration(settings.pitchDuration);
+    setQnaDuration(settings.qnaDuration);
     
-    // Generar perfil dinámico del cliente
     setGameState('generating-profile');
     
     try {
@@ -100,12 +95,11 @@ export default function PracticeContainer() {
       console.log('✅ Perfil generado:', profile);
       setCustomerProfile(profile);
       
-      // Mensaje inicial del cliente
       const initialMessage = 'Hola.';
       setConversation([{ sender: 'avatar', text: initialMessage }]);
       
       setGameState('pitching');
-      setTimer(PITCH_DURATION);
+      setTimer(settings.pitchDuration);
       setTurnNumber(1);
 
       if (useVoiceAgent) {
@@ -133,7 +127,9 @@ export default function PracticeContainer() {
     }
     setGameState('configuring');
     setConversation([]);
-    setTimer(PITCH_DURATION);
+    setTimer(120);
+    setPitchDuration(120);
+    setQnaDuration(60);
     setCustomerProfile(null);
     setTurnNumber(0);
     setEvaluation(null);
@@ -196,7 +192,6 @@ export default function PracticeContainer() {
     }
   }, [useVoiceAgent, stopTTS, product, customerProfile, conversation, turnNumber, speak, toast]);
   
-  // Evaluar el pitch cuando termine
   const performEvaluation = useCallback(async () => {
     if (!customerProfile) return;
     
@@ -248,7 +243,7 @@ export default function PracticeContainer() {
           description: 'Ahora comienza la fase de objeciones.' 
         });
         setGameState('objections');
-        setTimer(OBJECTIONS_DURATION);
+        setTimer(qnaDuration);
         setConversation(prev => [...prev, { sender: 'avatar', text: message }]);
         
         if (!useVoiceAgent) {
@@ -269,7 +264,7 @@ export default function PracticeContainer() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [gameState, timer, toast, speak, useVoiceAgent, performEvaluation]);
+  }, [gameState, timer, toast, speak, useVoiceAgent, performEvaluation, qnaDuration]);
 
   useEffect(() => {
     if (voiceAgentError) {
@@ -327,6 +322,8 @@ export default function PracticeContainer() {
       voiceAgentListening={voiceAgentListening}
       onStartVoiceAgentListening={startVoiceAgentListening}
       onStopVoiceAgentListening={stopVoiceAgentListening}
+      pitchDuration={pitchDuration}
+      qnaDuration={qnaDuration}
     />
   );
 }

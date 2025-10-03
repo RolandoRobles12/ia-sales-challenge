@@ -7,11 +7,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import type { Product, Mode, DifficultyLevel } from '@/types';
-import { PlayCircle, Mic, Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import type { Product, Mode, DifficultyLevel, PracticeSettings } from '@/types';
+import { PlayCircle, Mic, Loader2, Clock } from 'lucide-react';
 
 interface SettingsFormProps {
-  onStart: (settings: { product: Product; mode: Mode; difficultyLevel: DifficultyLevel }) => void;
+  onStart: (settings: PracticeSettings) => void;
   useVoiceAgent?: boolean;
   onToggleVoiceAgent?: (value: boolean) => void;
   isGeneratingProfile?: boolean;
@@ -52,10 +53,24 @@ export default function SettingsForm({
   const [product, setProduct] = useState<Product>('Aviva Contigo');
   const [mode, setMode] = useState<Mode>('Curioso');
   const [difficultyLevel, setDifficultyLevel] = useState<DifficultyLevel>('Fácil');
+  const [pitchDuration, setPitchDuration] = useState(120); // 2 minutos por defecto
+  const [qnaDuration, setQnaDuration] = useState(60); // 1 minuto por defecto
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onStart({ product, mode, difficultyLevel });
+    onStart({ 
+      product, 
+      mode, 
+      difficultyLevel,
+      pitchDuration,
+      qnaDuration 
+    });
+  };
+
+  const formatDuration = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -64,7 +79,7 @@ export default function SettingsForm({
         <CardHeader>
           <CardTitle className="text-2xl font-headline">Configura tu práctica</CardTitle>
           <CardDescription>
-            Elige el producto, personalidad del cliente y nivel de dificultad.
+            Elige el producto, personalidad del cliente, nivel de dificultad y duración.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -120,6 +135,68 @@ export default function SettingsForm({
                 </SelectContent>
               </Select>
               <p className="text-sm text-muted-foreground">{difficultyDescriptions[difficultyLevel]}</p>
+            </div>
+
+            {/* Duración del Pitch */}
+            <div className="space-y-2">
+              <Label htmlFor="pitch-duration" className="text-lg flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Duración del Pitch
+              </Label>
+              <div className="flex items-center gap-4">
+                <Input
+                  id="pitch-duration"
+                  type="number"
+                  min={30}
+                  max={600}
+                  step={30}
+                  value={pitchDuration}
+                  onChange={(e) => setPitchDuration(Number(e.target.value))}
+                  className="w-24"
+                />
+                <span className="text-sm text-muted-foreground">
+                  segundos ({formatDuration(pitchDuration)})
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Tiempo para presentar tu propuesta inicial
+              </p>
+            </div>
+
+            {/* Duración de Q&A */}
+            <div className="space-y-2">
+              <Label htmlFor="qna-duration" className="text-lg flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Duración de Preguntas y Objeciones
+              </Label>
+              <div className="flex items-center gap-4">
+                <Input
+                  id="qna-duration"
+                  type="number"
+                  min={30}
+                  max={600}
+                  step={30}
+                  value={qnaDuration}
+                  onChange={(e) => setQnaDuration(Number(e.target.value))}
+                  className="w-24"
+                />
+                <span className="text-sm text-muted-foreground">
+                  segundos ({formatDuration(qnaDuration)})
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Tiempo para responder objeciones y preguntas del cliente
+              </p>
+            </div>
+
+            {/* Resumen de tiempo total */}
+            <div className="p-4 bg-muted/50 rounded-lg">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">Tiempo Total:</span>
+                <span className="text-xl font-bold text-primary">
+                  {formatDuration(pitchDuration + qnaDuration)}
+                </span>
+              </div>
             </div>
 
             {/* Toggle Agente de Voz */}
