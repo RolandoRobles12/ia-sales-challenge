@@ -1,23 +1,28 @@
-# Settings for Backend (on Cloud Run).
-# See https://firebase.google.com/docs/app-hosting/configure#cloud-run
 runConfig:
   minInstances: 0
-  # maxInstances: 100
-  # concurrency: 80
-  # cpu: 1
-  # memoryMiB: 512
+  maxInstances: 4
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512
 
-# Environment variables and secrets.
-# env:
-  # Configure environment variables.
-  # See https://firebase.google.com/docs/app-hosting/configure#user-defined-environment
-  # - variable: MESSAGE
-  #   value: Hello world!
-  #   availability:
-  #     - BUILD
-  #     - RUNTIME
-
-  # Grant access to secrets in Cloud Secret Manager.
-  # See https://firebase.google.com/docs/app-hosting/configure#secret-parameters
-  # - variable: MY_SECRET
-  #   secret: mySecretRef
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: "AIzaSyDbtYoqeS-pKudTIU6SHDhbNu2UQNX12G0"
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: "studio-9947407568-15fc1.firebaseapp.com"
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: "studio-9947407568-15fc1"
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: "studio-9947407568-15fc1.firebasestorage.app"
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "224770542069"
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:224770542069:web:772d5f8695aced5edff8bc"
+  - variable: NEXT_PUBLIC_OPENAI_PROMPT_ID
+    secret: NEXT_PUBLIC_OPENAI_PROMPT_ID
+  - variable: GEMINI_API_KEY
+    secret: GEMINI_API_KEY
+  - variable: NEXT_PUBLIC_OPENAI_API_KEY
+    secret: NEXT_PUBLIC_OPENAI_API_KEY
+  - variable: OPENAI_API_KEY
+    secret: OPENAI_API_KEY
