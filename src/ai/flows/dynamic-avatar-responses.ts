@@ -70,6 +70,9 @@ function buildDynamicPrompt(input: DynamicAvatarResponseInput): Array<{role: str
     phase === 'media' ? customerProfile.objections.slice(2, 4) :
     customerProfile.objections.slice(4);
 
+  // Determinar cuándo puede cerrar según dificultad
+  const closingThreshold = getClosingThreshold(customerProfile.difficultyLevel);
+
   return [
     {
       role: 'system',
@@ -95,11 +98,27 @@ ${customerProfile.commonQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
 # FASE ACTUAL: ${phase.toUpperCase()}
 En esta fase, enfócate en: ${phaseObjections.join(' / ')}
 
+# IMPORTANTE: CIERRE DE VENTA
+Estás en el turno ${turnNumber} de la conversación.
+${closingThreshold.instruction}
+
+Si decides aceptar, usa EXACTAMENTE una de estas frases naturales mexicanas:
+- "Está bien, me interesa. ¿Qué necesito?"
+- "Suena bien. ¿Cómo lo solicito?"
+- "Ok, me convenciste. ¿Cuál es el siguiente paso?"
+- "Va, lo quiero. ¿Qué documentos pido?"
+- "Sale, ¿dónde lo pido?"
+
+Para nivel FÁCIL: Usa estas frases después de solo 2-3 intercambios buenos.
+Para otros niveles: Espera más turnos según tu dificultad.
+
+NO uses frases formales como "procedamos" o "hagámoslo" - habla como mexicano real.
+
 # INSTRUCCIONES DE RESPUESTA
 - SIEMPRE responde en español mexicano
 - Máximo 2-3 frases (≤30 palabras)
 - Usa lenguaje natural y coloquial
-- Presenta una objeción cada 2 turnos
+- Presenta una objeción cada 2 turnos (si aún no estás convencido)
 - Haz preguntas específicas de tu perfil
 - Mantén coherencia con tu ocupación y edad
 - NO actúes como vendedor, eres el CLIENTE
@@ -121,15 +140,67 @@ ${conversationHistory.map(msg =>
   ];
 }
 
+function getClosingThreshold(level: string): { turns: number; instruction: string } {
+  const thresholds: Record<string, { turns: number; instruction: string }> = {
+    'Fácil': {
+      turns: 2,
+      instruction: `IMPORTANTE: Estás en nivel FÁCIL - Eres MUY receptivo.
+      
+Si el vendedor:
+- Te ha saludado amablemente
+- Ha mencionado algún beneficio relevante para ti
+- Ha respondido 1-2 preguntas básicas
+
+Entonces DEBES mostrar interés y aceptar diciendo:
+"Suena bien. ¿Qué necesito para solicitarlo?"
+O "Me interesa. ¿Cuál es el siguiente paso?"
+
+NO sigas haciendo objeciones si ya te dieron información básica. Eres FÁCIL de convencer.`
+    },
+    'Intermedio': {
+      turns: 4,
+      instruction: 'Eres moderadamente escéptico. Si el vendedor ha respondido bien 3-4 preguntas con ejemplos, puedes decir: "Ok, me convenciste. ¿Cómo lo solicito?"'
+    },
+    'Difícil': {
+      turns: 6,
+      instruction: 'Eres crítico pero justo. Solo después de 5-6 respuestas MUY buenas que aborden tus preocupaciones específicas, considera: "Está bien, suena razonable. ¿Qué sigue?"'
+    },
+    'Avanzado': {
+      turns: 8,
+      instruction: 'Eres muy analítico. Necesitas ver datos concretos, comparaciones y beneficios claros en 7-8+ intercambios antes de decir: "Los números cuadran. ¿Procedemos?"'
+    },
+    'Súper Embajador': {
+      turns: 12,
+      instruction: 'Has tenido malas experiencias. Solo con un pitch excepcional y manejo perfecto de tus objeciones pasadas después de 10+ turnos, podrías decir: "Me has convencido, contra todo pronóstico."'
+    },
+    'Leyenda': {
+      turns: 15,
+      instruction: 'Eres casi imposible. Incluso con pitch perfecto, sigues dudando. Muy rara vez aceptas, y solo tras 15+ intercambios impecables.'
+    }
+  };
+
+  return thresholds[level] || thresholds['Intermedio'];
+}
+
 function getDifficultyInstructions(level: string): string {
-  const instructions = {
-    'Fácil': 'Eres accesible y abierto. Tus objeciones son simples y te convences con buenas explicaciones.',
-    'Intermedio': 'Eres escéptico moderado. Necesitas ejemplos concretos y comparaciones antes de decidir.',
-    'Difícil': 'Eres muy crítico. Cuestionas todo, comparas con competidores, y buscas defectos.',
-    'Avanzado': 'Eres extremadamente analítico. Pides cifras exactas, términos y condiciones, y encuentras problemas complejos.',
-    'Súper Embajador': 'Eres durísimo. Has tenido malas experiencias previas, repites objeciones, y eres muy difícil de convencer.',
-    'Leyenda': 'Eres prácticamente imposible. Interrumpes, cambias de tema, tienes múltiples preocupaciones simultáneas, y eres extremadamente exigente.'
+  const instructions: Record<string, string> = {
+    'Fácil': `Eres MUY accesible y positivo. Quieres que te convenzan.
+    - Haz 1-2 preguntas básicas simples
+    - Si te responden bien, di "Suena bien" o "Me gusta"
+    - Después de 2-3 respuestas del vendedor, ACEPTA diciendo: "Ok, quiero solicitarlo. ¿Qué necesito?"
+    - NO sigas con objeciones si ya te dieron info básica
+    - Eres FÁCIL de convencer - actúa como tal`,
+    
+    'Intermedio': 'Eres escéptico moderado. Haces 3-4 preguntas pero te convences con buenos ejemplos concretos y comparaciones.',
+    
+    'Difícil': 'Eres muy crítico. Cuestionas todo, comparas con competidores, y buscas defectos. Necesitas 5-6 respuestas excelentes.',
+    
+    'Avanzado': 'Eres extremadamente analítico. Pides cifras exactas, términos y condiciones, y encuentras problemas complejos. Muy difícil de convencer.',
+    
+    'Súper Embajador': 'Eres durísimo. Has tenido malas experiencias previas, repites objeciones, y eres muy difícil de convencer. Casi imposible.',
+    
+    'Leyenda': 'Eres prácticamente imposible. Interrumpes, cambias de tema, tienes múltiples preocupaciones simultáneas, y eres extremadamente exigente. Nunca aceptas fácilmente.'
   };
   
-  return instructions[level as keyof typeof instructions] || instructions['Intermedio'];
+  return instructions[level] || instructions['Intermedio'];
 }

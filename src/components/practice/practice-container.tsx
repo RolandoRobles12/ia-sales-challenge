@@ -70,6 +70,7 @@ export default function PracticeContainer() {
   } = useOpenAIVoiceAgent({
     product,
     mode,
+    difficultyLevel,
     onMessage: handleVoiceAgentMessage,
   });
 
@@ -120,11 +121,14 @@ export default function PracticeContainer() {
   }, [useVoiceAgent, connectVoiceAgent, speak, toast]);
   
   const restartPractice = useCallback(() => {
+    console.log('🔄 Reiniciando práctica...');
+    
     if (useVoiceAgent) {
       disconnectVoiceAgent();
     } else {
       stopTTS();
     }
+    
     setGameState('configuring');
     setConversation([]);
     setTimer(120);
@@ -193,12 +197,24 @@ export default function PracticeContainer() {
   }, [useVoiceAgent, stopTTS, product, customerProfile, conversation, turnNumber, speak, toast]);
   
   const performEvaluation = useCallback(async () => {
-    if (!customerProfile) return;
+    if (!customerProfile) {
+      console.error('❌ No hay perfil de cliente para evaluar');
+      setGameState('finished');
+      return;
+    }
     
+    console.log('📊 Evaluando pitch...');
     setGameState('evaluating');
     
+    // SOLUCIÓN 1: Desconectar agente de voz ANTES de evaluar
+    if (useVoiceAgent && voiceAgentConnected) {
+      console.log('🔌 Desconectando agente de voz antes de evaluar...');
+      disconnectVoiceAgent();
+    } else if (!useVoiceAgent) {
+      stopTTS();
+    }
+    
     try {
-      console.log('📊 Evaluando pitch...');
       const result = await evaluatePitch({
         product,
         customerProfile: {
@@ -217,23 +233,54 @@ export default function PracticeContainer() {
       setEvaluation(result);
       setGameState('finished');
       
-      if (useVoiceAgent) {
-        disconnectVoiceAgent();
-      }
-      
     } catch (error) {
-      console.error('Error evaluando pitch:', error);
+      console.error('❌ Error evaluando pitch:', error);
+      
+      // SOLUCIÓN 2: Mostrar mensaje de error pero permitir continuar
       toast({
         variant: 'destructive',
-        title: 'Error',
-        description: 'No se pudo evaluar el pitch. Mostrando resultados sin evaluación.',
+        title: 'Error en la evaluación',
+        description: 'No se pudo evaluar el pitch completamente. Puedes revisar la conversación.',
       });
+      
+      // Crear evaluación por defecto para no bloquear al usuario
+      setEvaluation({
+        greeting: 5,
+        needIdentification: 5,
+        productPresentation: 5,
+        benefitsCommunication: 5,
+        objectionHandling: 5,
+        closing: 5,
+        empathy: 5,
+        clarity: 5,
+        overallScore: 5,
+        feedback: 'No se pudo generar retroalimentación automática. Por favor, revisa tu conversación manualmente.',
+      });
+      
       setGameState('finished');
     }
-  }, [customerProfile, product, conversation, useVoiceAgent, disconnectVoiceAgent, toast]);
+  }, [
+    customerProfile, 
+    product, 
+    conversation, 
+    useVoiceAgent, 
+    voiceAgentConnected,
+    disconnectVoiceAgent, 
+    stopTTS,
+    toast
+  ]);
   
+  // SOLUCIÓN 3: Detener el timer cuando se está evaluando o terminado
   useEffect(() => {
-    if (gameState !== 'pitching' && gameState !== 'objections') return;
+    // No ejecutar el timer si estamos evaluando o ya terminamos
+    if (gameState === 'evaluating' || gameState === 'finished') {
+      console.log('⏸️ Timer detenido - Estado:', gameState);
+      return;
+    }
+
+    if (gameState !== 'pitching' && gameState !== 'objections') {
+      return;
+    }
 
     if (timer <= 0) {
       if (gameState === 'pitching') {
@@ -250,6 +297,7 @@ export default function PracticeContainer() {
           speak(message);
         }
       } else if (gameState === 'objections') {
+        console.log('⏰ Tiempo terminado - Iniciando evaluación...');
         toast({ 
           title: '¡Se acabó el tiempo!', 
           description: 'Evaluando tu pitch...' 
@@ -260,7 +308,12 @@ export default function PracticeContainer() {
     }
 
     const interval = setInterval(() => {
-      setTimer(t => t - 1);
+      setTimer(t => {
+        if (t <= 1) {
+          return 0;
+        }
+        return t - 1;
+      });
     }, 1000);
 
     return () => clearInterval(interval);
@@ -287,7 +340,43 @@ export default function PracticeContainer() {
     );
   }
 
-  if (gameState === 'finished' && evaluation && customerProfile) {
+  // SOLUCIÓN 4: Mostrar evaluación incluso si es parcial
+  if (gameState === 'finished') {
+    if (!customerProfile) {
+      return (
+        <div className="container mx-auto p-4 text-center">
+          <h2 className="text-2xl font-bold mb-4">Error</h2>
+          <p className="mb-4">No se pudo completar la simulación correctamente.</p>
+          <button
+            onClick={restartPractice}
+            className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-bold hover:bg-primary/90"
+          >
+            Intentar de Nuevo
+          </button>
+        </div>
+      );
+    }
+
+    if (!evaluation) {
+      return (
+        <div className="container mx-auto p-4 text-center">
+          <h2 className="text-2xl font-bold mb-4">Procesando evaluación...</h2>
+          <div className="flex justify-center mb-4">
+            <div className="animate-spin h-12 w-12 border-4 border-primary border-t-transparent rounded-full"></div>
+          </div>
+          <p className="text-muted-foreground mb-4">
+            Esto puede tardar unos segundos...
+          </p>
+          <button
+            onClick={restartPractice}
+            className="px-6 py-3 bg-secondary text-secondary-foreground rounded-lg font-bold hover:bg-secondary/90"
+          >
+            Cancelar y Volver
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div>
         <EvaluationResults 
@@ -307,6 +396,7 @@ export default function PracticeContainer() {
     );
   }
 
+  // SOLUCIÓN 5: Mostrar estado de evaluación en SimulationView
   return (
     <SimulationView
       product={product}

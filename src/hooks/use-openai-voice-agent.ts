@@ -31,19 +31,17 @@ export default function useOpenAIVoiceAgent({
 
   const { toast } = useToast();
   
-  // Use refs to avoid recreating callbacks
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const onMessageRef = useRef(onMessage);
-  const isConnectingRef = useRef(false); // Prevent duplicate connections
+  const isConnectingRef = useRef(false);
+  const disconnectingRef = useRef(false); // NUEVO: Prevenir race conditions durante disconnect
   
-  // Keep onMessage ref updated without causing re-renders
   useEffect(() => {
     onMessageRef.current = onMessage;
   }, [onMessage]);
 
-  // Memoize instructions to prevent recreation
   const instructions = useMemo(() => {
     const modeDetails = {
       Curioso: 'abierto, con interés genuino',
@@ -75,6 +73,15 @@ You are a potential Mexican customer considering "${product}" from Aviva Crédit
 5. NEVER provide product information or explain processes
 6. ONLY ask questions and object like a real Mexican customer
 
+# IMPORTANT: CLOSING THE SALE
+- If the salesperson has answered your main concerns well
+- And explained clear benefits relevant to you
+- And gave you concrete next steps
+- You can show interest and ask: "¿Qué tengo que hacer para solicitarlo?"
+- For EASY difficulty: Accept after 2-3 good responses
+- For MEDIUM: Accept after 4-5 good responses with proof
+- For HARD: Be very difficult, rarely accept even if pitch is good
+
 # Your Personality: ${mode}
 ${modeDetails[mode]}
 
@@ -101,10 +108,17 @@ REMEMBER:
 - React naturally to their pitch with questions and doubts`;
   }, [product, mode]);
 
+  // SOLUCIÓN 1: Memoizar disconnect para evitar recreaciones
   const disconnect = useCallback(() => {
+    // Prevenir múltiples llamadas simultáneas
+    if (disconnectingRef.current) {
+      console.log('⚠️ Desconexión ya en progreso, ignorando...');
+      return;
+    }
+
+    disconnectingRef.current = true;
     console.log('🔌 Desconectando...');
     
-    // Reset connection flag
     isConnectingRef.current = false;
     
     if (audioElementRef.current) {
@@ -135,12 +149,20 @@ REMEMBER:
       isSpeaking: false,
       error: null,
     });
-  }, []);
+
+    disconnectingRef.current = false;
+    console.log('✅ Desconexión completa');
+  }, []); // IMPORTANTE: Sin dependencias para evitar recreación
 
   const connect = useCallback(async () => {
-    // Prevent duplicate connections
-    if (isConnectingRef.current || peerConnectionRef.current) {
-      console.log('⚠️ Conexión ya en progreso o activa, ignorando...');
+    // SOLUCIÓN 2: Verificación más robusta del estado
+    if (isConnectingRef.current) {
+      console.log('⚠️ Conexión ya en progreso, ignorando...');
+      return;
+    }
+
+    if (peerConnectionRef.current?.connectionState === 'connected') {
+      console.log('⚠️ Ya hay una conexión activa, ignorando...');
       return;
     }
 
@@ -214,6 +236,16 @@ REMEMBER:
 
       pc.onconnectionstatechange = () => {
         console.log('🔗 Connection State:', pc.connectionState);
+        
+        // SOLUCIÓN 3: Manejar desconexiones inesperadas
+        if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+          console.error('❌ Conexión perdida:', pc.connectionState);
+          setState(prev => ({
+            ...prev,
+            error: new Error('Conexión perdida'),
+            isConnected: false,
+          }));
+        }
       };
 
       // Paso 5: Create data channel BEFORE creating offer
@@ -239,7 +271,7 @@ REMEMBER:
               silence_duration_ms: 700,
             },
             temperature: 0.8,
-            max_response_output_tokens: 150, // Limitar respuestas cortas
+            max_response_output_tokens: 150,
           },
         };
 
@@ -251,7 +283,6 @@ REMEMBER:
         try {
           const event = JSON.parse(e.data);
           
-          // Log solo eventos importantes (no deltas)
           if (!event.type.includes('.delta') && event.type !== 'input_audio_buffer.append') {
             console.log('📨 Evento:', event.type);
           }
@@ -356,7 +387,6 @@ REMEMBER:
         throw new Error(`Error en handshake SDP: ${sdpResponse.status}`);
       }
 
-      // Paso 7: Apply SDP answer
       const answerSdp = await sdpResponse.text();
       console.log('📥 Respuesta SDP recibida');
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
@@ -380,7 +410,6 @@ REMEMBER:
         description: error instanceof Error ? error.message : 'Error desconocido',
       });
       
-      // Cleanup on error
       disconnect();
     }
   }, [instructions, toast, disconnect]);
@@ -396,13 +425,11 @@ REMEMBER:
     if (dataChannelRef.current?.readyState === 'open') {
       console.log('🎤 Botón soltado - Procesando audio...');
       
-      // Confirmar el audio capturado
       dataChannelRef.current.send(JSON.stringify({
         type: 'input_audio_buffer.commit'
       }));
       
       console.log('📤 Solicitando respuesta del agente...');
-      // Solicitar respuesta
       dataChannelRef.current.send(JSON.stringify({
         type: 'response.create',
         response: {
@@ -414,15 +441,13 @@ REMEMBER:
     }
   }, []);
 
-  // Cleanup on unmount OR when component is about to be replaced by HMR
+  // SOLUCIÓN 4: Cleanup solo en unmount real, no en cada render
   useEffect(() => {
     return () => {
-      if (peerConnectionRef.current) {
-        console.log('🧹 Limpiando conexiones (unmount/HMR)');
-        disconnect();
-      }
+      console.log('🧹 Limpiando conexiones (unmount real)');
+      disconnect();
     };
-  }, [disconnect]);
+  }, []); // Sin dependencias - solo ejecuta en mount/unmount
 
   return {
     ...state,

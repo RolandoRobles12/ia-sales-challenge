@@ -54,8 +54,8 @@ const evaluatePitchPrompt = ai.definePrompt({
 
 **CONVERSACIÓN A EVALUAR:**
 {{#each conversation}}
-{{#if (eq sender "user")}}**Vendedor:** {{text}}{{/if}}
-{{#if (eq sender "avatar")}}**Cliente:** {{text}}{{/if}}
+{{#if (equal sender "user")}}**Vendedor:** {{text}}{{/if}}
+{{#if (equal sender "avatar")}}**Cliente:** {{text}}{{/if}}
 {{/each}}
 
 **CRITERIOS DE EVALUACIÓN (1-10):**
