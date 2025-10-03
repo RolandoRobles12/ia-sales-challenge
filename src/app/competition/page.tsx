@@ -15,7 +15,7 @@ import { GroupWordCloudCard } from "@/components/competition/word-cloud";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-const GROUPS: GroupNumber[] = [1, 2, 3, 4, 5, 6, 7, 8];
+const GROUPS: GroupNumber[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 interface VotingConfig {
   isOpen: boolean;

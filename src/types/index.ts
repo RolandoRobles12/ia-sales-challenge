@@ -4,7 +4,7 @@ export type Mode = 'Curioso' | 'Desconfiado' | 'Apurado';
 export type DifficultyLevel = 'Fácil' | 'Intermedio' | 'Difícil' | 'Avanzado' | 'Súper Embajador' | 'Leyenda';
 
 // Grupos de competencia
-export type GroupNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+export type GroupNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 
 export interface CustomerProfile {
   name: string;

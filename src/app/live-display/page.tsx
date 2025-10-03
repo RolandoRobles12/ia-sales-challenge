@@ -7,7 +7,7 @@ import type { WordCloudEntry, GroupNumber } from "@/types";
 import { Loader2, Sparkles, TrendingUp } from "lucide-react";
 import { WordCloudDisplay } from "@/components/competition/word-cloud";
 
-const GROUPS: GroupNumber[] = [1, 2, 3, 4, 5, 6, 7, 8];
+const GROUPS: GroupNumber[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 export default function LiveDisplayPage() {
   const firestore = useFirestore();

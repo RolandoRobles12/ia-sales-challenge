@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 
-const GROUPS: GroupNumber[] = [1, 2, 3, 4, 5, 6, 7, 8];
+const GROUPS: GroupNumber[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 interface VotingConfig {
   isOpen: boolean;
