@@ -1,12 +1,15 @@
+// src/components/competition/word-cloud.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MessageSquare, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { GroupNumber } from '@/types';
 import { cn } from '@/lib/utils';
+import * as d3 from 'd3';
+import cloud from 'd3-cloud';
 
 interface WordCloudInputProps {
   groupNumber: GroupNumber;
@@ -68,71 +71,254 @@ interface WordCloudDisplayProps {
 }
 
 export function WordCloudDisplay({ words, animated = true }: WordCloudDisplayProps) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [hoveredWord, setHoveredWord] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!svgRef.current || !words || words.length === 0) return;
+
+    const width = 800;
+    const height = 500;
+
+    // Calcular min y max
+    const maxCount = Math.max(...words.map(w => w.count));
+    const minCount = Math.min(...words.map(w => w.count));
+
+    // Limpiar SVG anterior
+    d3.select(svgRef.current).selectAll('*').remove();
+
+    // Gradiente de colores premium Aviva
+    const colorScale = d3.scaleLinear<string>()
+      .domain([0, 0.25, 0.5, 0.75, 1])
+      .range([
+        '#34d399', // emerald-400
+        '#10b981', // emerald-500
+        '#14b8a6', // teal-500
+        '#06b6d4', // cyan-500
+        '#0284c7', // sky-600
+      ]);
+
+    // Escala de tamaños más dramática
+    const fontSizeScale = d3.scalePow()
+      .exponent(0.8)
+      .domain([minCount || 1, maxCount])
+      .range([18, 90]);
+
+    // Preparar datos para d3-cloud
+    const cloudWords = words.map(w => ({
+      text: w.word,
+      size: fontSizeScale(w.count),
+      count: w.count,
+    }));
+
+    // Configurar layout
+    const layout = cloud()
+      .size([width, height])
+      .words(cloudWords as any)
+      .padding(10)
+      .rotate(() => {
+        const random = Math.random();
+        if (random < 0.7) return 0; // 70% horizontal
+        if (random < 0.85) return -30; // 15% diagonal suave
+        return 30; // 15% diagonal suave opuesta
+      })
+      .font('PT Sans, system-ui, sans-serif')
+      .fontSize(d => d.size!)
+      .spiral('archimedean')
+      .on('end', draw);
+
+    layout.start();
+
+    function draw(calculatedWords: any[]) {
+      const svg = d3.select(svgRef.current);
+
+      // Gradiente radial de fondo
+      const defs = svg.append('defs');
+      
+      const radialGradient = defs.append('radialGradient')
+        .attr('id', 'bg-gradient')
+        .attr('cx', '50%')
+        .attr('cy', '50%')
+        .attr('r', '50%');
+      
+      radialGradient.append('stop')
+        .attr('offset', '0%')
+        .attr('stop-color', '#f0fdfa')
+        .attr('stop-opacity', 1);
+      
+      radialGradient.append('stop')
+        .attr('offset', '100%')
+        .attr('stop-color', '#ccfbf1')
+        .attr('stop-opacity', 1);
+
+      const g = svg
+        .append('g')
+        .attr('transform', `translate(${width / 2}, ${height / 2})`);
+
+      const text = g
+        .selectAll('text')
+        .data(calculatedWords)
+        .enter()
+        .append('text')
+        .style('font-family', 'PT Sans, system-ui, sans-serif')
+        .style('font-weight', (d: any) => {
+          const intensity = (d.count - minCount) / (maxCount - minCount || 1);
+          return intensity > 0.75 ? '800' : intensity > 0.5 ? '700' : intensity > 0.25 ? '600' : '500';
+        })
+        .style('font-size', (d: any) => `${d.size}px`)
+        .style('fill', (d: any) => {
+          const intensity = (d.count - minCount) / (maxCount - minCount || 1);
+          return colorScale(intensity);
+        })
+        .style('opacity', 0)
+        .style('letter-spacing', '0.02em')
+        .attr('text-anchor', 'middle')
+        .attr('transform', (d: any) => 
+          `translate(${d.x}, ${d.y}) rotate(${d.rotate})`
+        )
+        .text((d: any) => d.text)
+        .style('cursor', 'pointer')
+        .style('transition', 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)')
+        .on('mouseenter', function(event: any, d: any) {
+          setHoveredWord(d.text);
+          d3.select(this)
+            .transition()
+            .duration(250)
+            .ease(d3.easeCubicOut)
+            .style('opacity', 1)
+            .style('font-size', `${d.size * 1.25}px`)
+            .style('filter', 'drop-shadow(0 8px 16px rgba(6, 182, 212, 0.4))')
+            .attr('transform', `translate(${d.x}, ${d.y - 5}) rotate(${d.rotate})`);
+        })
+        .on('mouseleave', function(event: any, d: any) {
+          setHoveredWord(null);
+          d3.select(this)
+            .transition()
+            .duration(250)
+            .ease(d3.easeCubicOut)
+            .style('opacity', 0.92)
+            .style('font-size', `${d.size}px`)
+            .style('filter', 'none')
+            .attr('transform', `translate(${d.x}, ${d.y}) rotate(${d.rotate})`);
+        });
+
+      if (animated) {
+        text
+          .transition()
+          .duration(1200)
+          .delay((d: any, i: number) => i * 60)
+          .ease(d3.easeCubicOut)
+          .style('opacity', 0.92);
+      } else {
+        text.style('opacity', 0.92);
+      }
+
+      // Tooltip mejorado
+      const tooltip = svg
+        .append('g')
+        .attr('class', 'tooltip')
+        .style('opacity', 0);
+
+      const tooltipBg = tooltip
+        .append('rect')
+        .attr('rx', 12)
+        .attr('ry', 12)
+        .attr('fill', '#0f766e')
+        .attr('filter', 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15))');
+
+      const tooltipText = tooltip
+        .append('text')
+        .attr('text-anchor', 'middle')
+        .style('font-size', '13px')
+        .style('font-weight', '600')
+        .style('fill', '#f0fdfa')
+        .style('letter-spacing', '0.02em');
+
+      text.on('mouseenter', function(event: any, d: any) {
+        const textContent = `${d.text}: ${d.count}${d.count === 1 ? ' vez' : ' veces'}`;
+        tooltipText.text(textContent);
+        
+        const bbox = tooltipText.node()!.getBBox();
+        tooltipBg
+          .attr('x', bbox.x - 12)
+          .attr('y', bbox.y - 6)
+          .attr('width', bbox.width + 24)
+          .attr('height', bbox.height + 12);
+
+        tooltip
+          .attr('transform', `translate(${width / 2}, ${height - 30})`)
+          .transition()
+          .duration(200)
+          .style('opacity', 1);
+      }).on('mouseleave', function() {
+        tooltip
+          .transition()
+          .duration(200)
+          .style('opacity', 0);
+      });
+    }
+
+    return () => {
+      layout.stop();
+    };
+  }, [words, animated]);
+
   if (words.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8">
-        No hay palabras aún. ¡Sé el primero en compartir!
-      </p>
+      <div className="flex items-center justify-center h-[500px] bg-gradient-to-br from-teal-50 via-emerald-50 to-cyan-50 rounded-2xl border-2 border-teal-200 shadow-xl">
+        <div className="text-center p-8">
+          <div className="relative inline-block mb-4">
+            <div className="absolute inset-0 bg-gradient-to-br from-teal-400 to-emerald-400 rounded-full blur-2xl opacity-30 animate-pulse"></div>
+            <p className="relative text-7xl">💬</p>
+          </div>
+          <p className="text-xl font-bold text-gray-700 mb-2">
+            Sin palabras por ahora
+          </p>
+          <p className="text-sm text-gray-500">
+            ¡Sé el primero en compartir tu opinión!
+          </p>
+        </div>
+      </div>
     );
   }
 
-  const maxCount = Math.max(...words.map(w => w.count));
-  const minCount = Math.min(...words.map(w => w.count));
-  
-  const getColor = (count: number) => {
-    const intensity = (count - minCount) / (maxCount - minCount || 1);
-    if (intensity > 0.7) return 'bg-primary/20 text-primary border-primary/30';
-    if (intensity > 0.5) return 'bg-blue-500/20 text-blue-700 border-blue-500/30';
-    if (intensity > 0.3) return 'bg-green-500/20 text-green-700 border-green-500/30';
-    return 'bg-gray-500/20 text-gray-700 border-gray-500/30';
-  };
-
-  const getFontSize = (count: number) => {
-    const intensity = (count - minCount) / (maxCount - minCount || 1);
-    if (intensity > 0.7) return 'text-2xl md:text-3xl';
-    if (intensity > 0.5) return 'text-xl md:text-2xl';
-    if (intensity > 0.3) return 'text-lg md:text-xl';
-    return 'text-base';
-  };
-
-  const getFontWeight = (count: number) => {
-    const intensity = (count - minCount) / (maxCount - minCount || 1);
-    if (intensity > 0.7) return 'font-bold';
-    if (intensity > 0.5) return 'font-semibold';
-    return 'font-medium';
-  };
-  
   return (
-    <div className="flex flex-wrap gap-3 justify-center items-center py-6 min-h-[200px]">
-      {words.map(({ word, count }, index) => {
-        const colorClass = getColor(count);
-        const fontSize = getFontSize(count);
-        const fontWeight = getFontWeight(count);
-        const animationClass = animated ? "animate-in fade-in-0 zoom-in-95" : "";
-        
-        return (
-          <div
-            key={word}
-            className={cn(
-              "px-4 py-2 rounded-full border-2 transition-all cursor-default hover:scale-110 hover:shadow-lg",
-              colorClass,
-              fontSize,
-              fontWeight,
-              animationClass
-            )}
-            style={{
-              animationDelay: animated ? `${index * 50}ms` : '0ms',
-            }}
-          >
-            <span className="flex items-center gap-2">
-              {word}
-              <span className="text-xs opacity-60 font-normal">
-                {count}x
-              </span>
-            </span>
+    <div 
+      ref={containerRef}
+      className="relative bg-gradient-to-br from-teal-50 via-white to-emerald-50 rounded-2xl border-2 border-teal-200 shadow-2xl overflow-hidden"
+      style={{ minHeight: '500px' }}
+    >
+      {/* Efectos de fondo decorativos */}
+      <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden">
+        <div className="absolute top-10 left-10 w-64 h-64 bg-gradient-to-br from-teal-200/30 to-emerald-200/30 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-10 right-10 w-80 h-80 bg-gradient-to-br from-cyan-200/30 to-sky-200/30 rounded-full blur-3xl"></div>
+      </div>
+
+      {hoveredWord && (
+        <div className="absolute top-6 left-6 z-20 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-gradient-to-r from-teal-600 to-emerald-600 text-white px-5 py-2.5 rounded-full shadow-xl border-2 border-white/20 backdrop-blur-sm">
+            <span className="text-sm font-bold tracking-wide">{hoveredWord}</span>
           </div>
-        );
-      })}
+        </div>
+      )}
+
+      <div className="absolute top-6 right-6 z-10">
+        <div className="bg-white/90 backdrop-blur-md px-4 py-2.5 rounded-full shadow-lg border-2 border-teal-300">
+          <span className="text-sm font-bold bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent">
+            {words.length} {words.length === 1 ? 'palabra' : 'palabras'}
+          </span>
+        </div>
+      </div>
+
+      <div className="relative z-10 flex items-center justify-center p-8">
+        <svg
+          ref={svgRef}
+          width={800}
+          height={500}
+          className="drop-shadow-sm"
+        />
+      </div>
     </div>
   );
 }
@@ -153,9 +339,9 @@ export function GroupWordCloudCard({
   disabled
 }: GroupWordCloudCardProps) {
   return (
-    <Card>
+    <Card className="border-emerald-200">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-emerald-700">
           <MessageSquare className="h-5 w-5" />
           Grupo {groupNumber} - Word Cloud
         </CardTitle>

@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Header from "@/components/layout/header";
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase";
-import { collection, doc, addDoc, serverTimestamp, query, where } from "firebase/firestore";
+import { collection, doc, setDoc, serverTimestamp, query, where, getDocs } from "firebase/firestore";
 import type { StarRating, WordCloudEntry, GroupNumber } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Loader2, LogIn, Trophy, Lock, Clock } from "lucide-react";
@@ -28,8 +28,10 @@ export default function CompetitionPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'ratings' | 'wordcloud'>('ratings');
   const [timeRemaining, setTimeRemaining] = useState<string>('');
+  const [userVotes, setUserVotes] = useState<Set<GroupNumber>>(new Set());
+  const [userWords, setUserWords] = useState<Set<GroupNumber>>(new Set());
+  const [isCheckingVotes, setIsCheckingVotes] = useState(true);
 
-  // Query para configuración de votación
   const votingConfigDoc = useMemoFirebase(() => {
     if (!firestore) return null;
     return doc(firestore, 'config', 'voting');
@@ -37,21 +39,16 @@ export default function CompetitionPage() {
 
   const { data: votingConfig } = useDoc<VotingConfig>(votingConfigDoc);
 
-  // Calcular si la votación está abierta
   const isVotingOpen = useMemo(() => {
-    if (!votingConfig) return true; // Por defecto abierta si no hay config
-    
+    if (!votingConfig) return true;
     if (!votingConfig.isOpen) return false;
-    
     if (votingConfig.closeTime) {
       const closeDate = new Date(votingConfig.closeTime.toDate());
       return new Date() < closeDate;
     }
-    
     return votingConfig.isOpen;
   }, [votingConfig]);
 
-  // Actualizar contador de tiempo restante
   useEffect(() => {
     if (!votingConfig?.closeTime) {
       setTimeRemaining('');
@@ -81,7 +78,48 @@ export default function CompetitionPage() {
     return () => clearInterval(interval);
   }, [votingConfig]);
 
-  // Queries para calificaciones
+  useEffect(() => {
+    if (!firestore || !user) {
+      setIsCheckingVotes(false);
+      return;
+    }
+
+    const checkUserVotes = async () => {
+      setIsCheckingVotes(true);
+      try {
+        const ratingsQuery = query(
+          collection(firestore, 'starRatings'),
+          where('userId', '==', user.uid)
+        );
+        const ratingsSnapshot = await getDocs(ratingsQuery);
+        const votedGroups = new Set<GroupNumber>();
+        ratingsSnapshot.forEach(doc => {
+          const data = doc.data() as StarRating;
+          votedGroups.add(data.groupNumber);
+        });
+        setUserVotes(votedGroups);
+
+        const wordsQuery = query(
+          collection(firestore, 'wordCloud'),
+          where('userId', '==', user.uid)
+        );
+        const wordsSnapshot = await getDocs(wordsQuery);
+        const wordGroups = new Set<GroupNumber>();
+        wordsSnapshot.forEach(doc => {
+          const data = doc.data() as WordCloudEntry;
+          wordGroups.add(data.groupNumber);
+        });
+        setUserWords(wordGroups);
+      } catch (error) {
+        console.error('Error checking user votes:', error);
+      } finally {
+        setIsCheckingVotes(false);
+      }
+    };
+
+    checkUserVotes();
+  }, [firestore, user]);
+
   const ratingsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, "starRatings");
@@ -89,7 +127,6 @@ export default function CompetitionPage() {
 
   const { data: allRatings, isLoading: isLoadingRatings } = useCollection<StarRating>(ratingsQuery);
 
-  // Queries para word cloud
   const wordCloudQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, "wordCloud");
@@ -97,7 +134,6 @@ export default function CompetitionPage() {
 
   const { data: allWords, isLoading: isLoadingWords } = useCollection<WordCloudEntry>(wordCloudQuery);
 
-  // Calcular estadísticas por grupo
   const groupStats = useMemo(() => {
     const stats: Record<GroupNumber, {
       averageStars: number;
@@ -107,7 +143,6 @@ export default function CompetitionPage() {
       hasUserWord: boolean;
     }> = {} as any;
 
-    // Inicializar stats para cada grupo
     GROUPS.forEach(groupNum => {
       stats[groupNum] = {
         averageStars: 0,
@@ -117,7 +152,6 @@ export default function CompetitionPage() {
       };
     });
 
-    // Procesar calificaciones
     if (allRatings) {
       allRatings.forEach(rating => {
         const groupStats = stats[rating.groupNumber];
@@ -129,7 +163,6 @@ export default function CompetitionPage() {
         }
       });
 
-      // Calcular promedios
       GROUPS.forEach(groupNum => {
         if (stats[groupNum].totalRatings > 0) {
           stats[groupNum].averageStars /= stats[groupNum].totalRatings;
@@ -137,7 +170,6 @@ export default function CompetitionPage() {
       });
     }
 
-    // Procesar word cloud
     if (allWords) {
       const wordCounts: Record<GroupNumber, Record<string, number>> = {} as any;
       
@@ -157,7 +189,6 @@ export default function CompetitionPage() {
         }
       });
 
-      // Convertir a array y ordenar
       GROUPS.forEach(groupNum => {
         stats[groupNum].words = Object.entries(wordCounts[groupNum])
           .map(([word, count]) => ({ word, count }))
@@ -180,13 +211,26 @@ export default function CompetitionPage() {
       return;
     }
 
+    if (userVotes.has(groupNumber)) {
+      toast({
+        variant: 'destructive',
+        title: 'Ya votaste',
+        description: `Ya has calificado al Grupo ${groupNumber}. Solo se permite un voto por grupo.`,
+      });
+      return;
+    }
+
     try {
-      await addDoc(collection(firestore, 'starRatings'), {
+      const ratingId = `${user.uid}_${groupNumber}`;
+      
+      await setDoc(doc(firestore, 'starRatings', ratingId), {
         groupNumber,
         userId: user.uid,
         stars,
         createdAt: serverTimestamp(),
       });
+
+      setUserVotes(prev => new Set(prev).add(groupNumber));
 
       toast({
         title: '¡Calificación enviada!',
@@ -214,13 +258,26 @@ export default function CompetitionPage() {
       return;
     }
 
+    if (userWords.has(groupNumber)) {
+      toast({
+        variant: 'destructive',
+        title: 'Ya enviaste palabra',
+        description: `Ya has enviado una palabra para el Grupo ${groupNumber}. Solo se permite una palabra por grupo.`,
+      });
+      return;
+    }
+
     try {
-      await addDoc(collection(firestore, 'wordCloud'), {
+      const wordId = `${user.uid}_${groupNumber}`;
+      
+      await setDoc(doc(firestore, 'wordCloud', wordId), {
         groupNumber,
         userId: user.uid,
         word: word.trim(),
         createdAt: serverTimestamp(),
       });
+
+      setUserWords(prev => new Set(prev).add(groupNumber));
 
       toast({
         title: '¡Palabra enviada!',
@@ -237,7 +294,7 @@ export default function CompetitionPage() {
   };
 
   const renderContent = () => {
-    if (isUserLoading || (user && (isLoadingRatings || isLoadingWords))) {
+    if (isUserLoading || (user && (isLoadingRatings || isLoadingWords || isCheckingVotes))) {
       return (
         <div className="flex justify-center items-center h-40">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -262,7 +319,6 @@ export default function CompetitionPage() {
 
     return (
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-        {/* Alerta de votación cerrada */}
         {!isVotingOpen && (
           <Alert variant="destructive" className="mb-4">
             <Lock className="h-4 w-4" />
@@ -273,7 +329,6 @@ export default function CompetitionPage() {
           </Alert>
         )}
 
-        {/* Alerta de tiempo restante */}
         {isVotingOpen && timeRemaining && (
           <Alert className="mb-4">
             <Clock className="h-4 w-4" />
@@ -299,12 +354,11 @@ export default function CompetitionPage() {
                 totalRatings={groupStats[groupNum].totalRatings}
                 currentUserRating={groupStats[groupNum].userRating}
                 onRate={(stars) => handleRate(groupNum, stars)}
-                disabled={!isVotingOpen}
+                disabled={!isVotingOpen || userVotes.has(groupNum)}
               />
             ))}
           </div>
 
-          {/* Tabla de clasificación */}
           <Card className="mt-8">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -353,9 +407,9 @@ export default function CompetitionPage() {
                 key={groupNum}
                 groupNumber={groupNum}
                 words={groupStats[groupNum].words}
-                hasUserSubmitted={groupStats[groupNum].hasUserWord}
+                hasUserSubmitted={userWords.has(groupNum)}
                 onSubmit={(word) => handleSubmitWord(groupNum, word)}
-                disabled={!isVotingOpen}
+                disabled={!isVotingOpen || userWords.has(groupNum)}
               />
             ))}
           </div>
@@ -372,7 +426,7 @@ export default function CompetitionPage() {
           <CardHeader>
             <CardTitle className="text-3xl font-headline">Competencia de Grupos</CardTitle>
             <CardDescription>
-              Califica cada presentación y comparte qué te gustó más
+              Califica cada presentación y comparte qué te gustó más (un voto por grupo)
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -1,268 +1,222 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useState } from "react";
-import cloud from "d3-cloud";
+import { useEffect, useRef, useState } from 'react';
+import * as d3 from 'd3';
+import cloud from 'd3-cloud';
 
-export type WordDatum = { text: string; freq: number };
-
-type TeamData = {
-  teamName: string;
-  words: WordDatum[];
-  color: string;
-};
-
-type Props = {
-  teams: TeamData[];
-  width?: number;
-  height?: number;
-  maxWords?: number;
-};
-
-interface CloudWord {
+export interface WordData {
   text: string;
-  size: number;
-  x?: number;
-  y?: number;
-  rotate?: number;
+  value: number;
 }
 
-function WordCloudVisualization({ 
+interface AestheticWordCloudProps {
+  words: WordData[];
+  width?: number;
+  height?: number;
+  title?: string;
+}
+
+export default function AestheticWordCloud({ 
   words, 
-  width, 
-  height, 
-  color 
-}: { 
-  words: WordDatum[]; 
-  width: number; 
-  height: number; 
-  color: string;
-}) {
+  width = 800, 
+  height = 500,
+  title 
+}: AestheticWordCloudProps) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [cloudWords, setCloudWords] = useState<CloudWord[]>([]);
-  const [wordFreqMap, setWordFreqMap] = useState<Map<string, number>>(new Map());
-  const [minFreq, setMinFreq] = useState(1);
-  const [maxFreq, setMaxFreq] = useState(1);
+  const [hoveredWord, setHoveredWord] = useState<string | null>(null);
 
   useEffect(() => {
-    if (words.length === 0) return;
+    if (!svgRef.current || !words || words.length === 0) return;
 
-    const sortedWords = words
-      .filter((w) => w && typeof w.text === "string" && Number.isFinite(w.freq))
-      .sort((a, b) => b.freq - a.freq)
-      .slice(0, 100);
+    // Limpiar SVG anterior
+    d3.select(svgRef.current).selectAll('*').remove();
 
-    if (sortedWords.length === 0) return;
+    // Colores de Aviva (gradiente verde-teal)
+    const colorScale = d3.scaleLinear<string>()
+      .domain([0, 0.3, 0.6, 1])
+      .range([
+        '#10b981', // green-500
+        '#14b8a6', // teal-500
+        '#06b6d4', // cyan-500
+        '#0891b2', // cyan-600
+      ]);
 
-    const maxF = sortedWords[0].freq;
-    const minF = sortedWords[sortedWords.length - 1]?.freq || 1;
-    setMaxFreq(maxF);
-    setMinFreq(minF);
-    
-    const freqMap = new Map<string, number>();
-    sortedWords.forEach(w => freqMap.set(w.text, w.freq));
-    setWordFreqMap(freqMap);
+    // Calcular tamaños
+    const maxValue = Math.max(...words.map(w => w.value));
+    const minValue = Math.min(...words.map(w => w.value));
 
+    const fontSizeScale = d3.scaleLog()
+      .domain([minValue || 1, maxValue])
+      .range([14, 80]);
+
+    // Preparar datos para d3-cloud
+    const cloudWords = words.map(w => ({
+      text: w.text,
+      size: fontSizeScale(w.value),
+      value: w.value,
+    }));
+
+    // Configurar layout de word cloud
     const layout = cloud()
       .size([width, height])
-      .words(sortedWords.map(d => {
-        const relFreq = (d.freq - minF) / (maxF - minF || 1);
-        return {
-          text: d.text,
-          size: 20 + Math.pow(relFreq, 0.7) * 70,
-        };
-      }))
-      .padding(5)
+      .words(cloudWords as any)
+      .padding(8)
       .rotate(() => {
-        const rand = Math.random();
-        if (rand < 0.7) return 0;
-        if (rand < 0.85) return -90;
-        return 90;
+        const random = Math.random();
+        if (random < 0.6) return 0; // 60% horizontal
+        if (random < 0.8) return -45; // 20% diagonal izquierda
+        return 45; // 20% diagonal derecha
       })
-      .font('PT Sans, Arial, sans-serif')
+      .font('PT Sans, sans-serif')
       .fontSize(d => d.size!)
       .spiral('archimedean')
-      .on('end', (computedWords: CloudWord[]) => {
-        setCloudWords(computedWords);
-      });
+      .on('end', draw);
 
     layout.start();
+
+    function draw(calculatedWords: any[]) {
+      const svg = d3.select(svgRef.current);
+
+      // Grupo principal centrado
+      const g = svg
+        .append('g')
+        .attr('transform', `translate(${width / 2}, ${height / 2})`);
+
+      // Crear palabras
+      const text = g
+        .selectAll('text')
+        .data(calculatedWords)
+        .enter()
+        .append('text')
+        .style('font-family', 'PT Sans, sans-serif')
+        .style('font-weight', (d: any) => {
+          const intensity = (d.value - minValue) / (maxValue - minValue || 1);
+          return intensity > 0.7 ? '700' : intensity > 0.4 ? '600' : '400';
+        })
+        .style('font-size', (d: any) => `${d.size}px`)
+        .style('fill', (d: any) => {
+          const intensity = (d.value - minValue) / (maxValue - minValue || 1);
+          return colorScale(intensity);
+        })
+        .style('opacity', 0)
+        .attr('text-anchor', 'middle')
+        .attr('transform', (d: any) => 
+          `translate(${d.x}, ${d.y}) rotate(${d.rotate})`
+        )
+        .text((d: any) => d.text)
+        .style('cursor', 'pointer')
+        .on('mouseenter', function(event: any, d: any) {
+          setHoveredWord(d.text);
+          d3.select(this)
+            .transition()
+            .duration(200)
+            .style('opacity', 1)
+            .style('font-size', `${d.size * 1.2}px`)
+            .style('filter', 'drop-shadow(0 0 8px rgba(16, 185, 129, 0.6))');
+        })
+        .on('mouseleave', function(event: any, d: any) {
+          setHoveredWord(null);
+          d3.select(this)
+            .transition()
+            .duration(200)
+            .style('opacity', 0.85)
+            .style('font-size', `${d.size}px`)
+            .style('filter', 'none');
+        });
+
+      // Animación de entrada
+      text
+        .transition()
+        .duration(1000)
+        .delay((d: any, i: number) => i * 50)
+        .style('opacity', 0.85);
+
+      // Tooltip con valor
+      const tooltip = svg
+        .append('text')
+        .attr('class', 'tooltip')
+        .attr('text-anchor', 'middle')
+        .attr('y', height - 20)
+        .attr('x', width / 2)
+        .style('font-size', '14px')
+        .style('font-weight', '600')
+        .style('fill', '#0f766e')
+        .style('opacity', 0);
+
+      text.on('mouseenter', function(event: any, d: any) {
+        tooltip
+          .text(`${d.text}: ${d.value} ${d.value === 1 ? 'vez' : 'veces'}`)
+          .transition()
+          .duration(200)
+          .style('opacity', 1);
+      }).on('mouseleave', function() {
+        tooltip
+          .transition()
+          .duration(200)
+          .style('opacity', 0);
+      });
+    }
 
     return () => {
       layout.stop();
     };
-  }, [words, width, height]);
+  }, [words, width, height, maxValue, minValue]);
 
-  return (
-    <svg ref={svgRef} width={width} height={height}>
-      <g transform={`translate(${width / 2}, ${height / 2})`}>
-        {cloudWords.map((word, i) => {
-          const freq = wordFreqMap.get(word.text) || 1;
-          const relFreq = (freq - minFreq) / (maxFreq - minFreq || 1);
-          const opacity = 0.85 + relFreq * 0.15;
-          
-          return (
-            <text
-              key={i}
-              style={{
-                fontSize: word.size,
-                fontFamily: 'PT Sans, Arial, sans-serif',
-                fontWeight: relFreq > 0.6 ? 'bold' : '600',
-                fill: color,
-                opacity: opacity,
-              }}
-              textAnchor="middle"
-              transform={`translate(${word.x}, ${word.y}) rotate(${word.rotate})`}
-            >
-              {word.text}
-            </text>
-          );
-        })}
-      </g>
-    </svg>
-  );
-}
-
-export default function AvivaWordCloud({ teams = [], width = 500, height = 400 }: Props) {
-  const [selectedView, setSelectedView] = useState<'general' | number>('general');
-
-  // Combinar todas las palabras para la vista general
-  const allWords = teams.flatMap(team => team.words || []);
-  const wordFreqMap = new Map<string, number>();
-  
-  allWords.forEach(word => {
-    const current = wordFreqMap.get(word.text) || 0;
-    wordFreqMap.set(word.text, current + word.freq);
-  });
-
-  const generalWords: WordDatum[] = Array.from(wordFreqMap.entries()).map(([text, freq]) => ({
-    text,
-    freq,
-  }));
-
-  const totalWords = allWords.length;
-  const uniqueWords = wordFreqMap.size;
-
-  // Si no hay equipos, mostrar mensaje
-  if (teams.length === 0) {
+  if (!words || words.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-2xl font-bold text-gray-800 mb-2">No hay datos disponibles</p>
-          <p className="text-gray-600">Esperando información de equipos...</p>
+      <div 
+        className="flex items-center justify-center bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border-2 border-emerald-200"
+        style={{ width, height }}
+      >
+        <div className="text-center p-8">
+          <div className="text-6xl mb-4">💬</div>
+          <p className="text-lg font-semibold text-gray-600">
+            No hay palabras aún
+          </p>
+          <p className="text-sm text-gray-500 mt-2">
+            Sé el primero en compartir
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white py-10 px-6 shadow-lg">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-4xl font-bold mb-2">Nube de Palabras - Aviva</h1>
-          <p className="text-lg text-emerald-50">Visualización por equipos en tiempo real</p>
-        </div>
-      </div>
+    <div className="relative">
+      {title && (
+        <h3 className="text-xl font-bold text-center mb-4 text-emerald-700">
+          {title}
+        </h3>
+      )}
+      <div 
+        className="bg-gradient-to-br from-emerald-50 via-white to-teal-50 rounded-2xl shadow-xl border-2 border-emerald-200 overflow-hidden relative"
+        style={{ width, height }}
+      >
+        {/* Efecto de brillo de fondo */}
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/5 to-teal-400/5 pointer-events-none" />
+        
+        <svg
+          ref={svgRef}
+          width={width}
+          height={height}
+          className="relative z-10"
+        />
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-emerald-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-gray-600 mb-1">Total Palabras</p>
-                <p className="text-3xl font-bold text-gray-900">{totalWords}</p>
-              </div>
-              <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
-                <span className="text-2xl">💬</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-teal-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-gray-600 mb-1">Palabras Únicas</p>
-                <p className="text-3xl font-bold text-gray-900">{uniqueWords}</p>
-              </div>
-              <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center">
-                <span className="text-2xl">📝</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-cyan-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-gray-600 mb-1">Equipos</p>
-                <p className="text-3xl font-bold text-gray-900">{teams.length}</p>
-              </div>
-              <div className="w-12 h-12 bg-cyan-100 rounded-full flex items-center justify-center">
-                <span className="text-2xl">👥</span>
-              </div>
-            </div>
-          </div>
+        {/* Badge de contador */}
+        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg border border-emerald-200">
+          <span className="text-sm font-semibold text-emerald-700">
+            {words.length} {words.length === 1 ? 'palabra' : 'palabras'}
+          </span>
         </div>
 
-        {/* Tabs */}
-        <div className="bg-white rounded-xl shadow-md mb-8 overflow-hidden">
-          <div className="flex flex-wrap border-b border-gray-200">
-            <button
-              onClick={() => setSelectedView('general')}
-              className={`px-6 py-4 font-semibold transition-all ${
-                selectedView === 'general'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-white text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              Vista General
-            </button>
-            {teams.map((team, idx) => (
-              <button
-                key={idx}
-                onClick={() => setSelectedView(idx)}
-                className={`px-6 py-4 font-semibold transition-all ${
-                  selectedView === idx
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                {team.teamName}
-              </button>
-            ))}
+        {/* Indicador de hover */}
+        {hoveredWord && (
+          <div className="absolute top-4 left-4 bg-emerald-600 text-white px-4 py-2 rounded-full shadow-lg animate-in fade-in zoom-in-95 duration-200">
+            <span className="text-sm font-semibold">
+              {hoveredWord}
+            </span>
           </div>
-        </div>
-
-        {/* Word Cloud Display */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-800">
-              {selectedView === 'general' ? 'Todas las Palabras' : teams[selectedView as number]?.teamName}
-            </h2>
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-sm text-gray-600">En vivo</span>
-            </div>
-          </div>
-          
-          <div className="flex justify-center items-center bg-gradient-to-br from-gray-50 to-white rounded-xl p-8 min-h-[400px]">
-            {selectedView === 'general' ? (
-              <WordCloudVisualization
-                words={generalWords}
-                width={width}
-                height={height}
-                color="#00664F"
-              />
-            ) : (
-              <WordCloudVisualization
-                words={teams[selectedView as number]?.words || []}
-                width={width}
-                height={height}
-                color={teams[selectedView as number]?.color || '#00664F'}
-              />
-            )}
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

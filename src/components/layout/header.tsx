@@ -4,7 +4,7 @@ import { PlaceHolderImages } from "@/lib/placeholder-images";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "../ui/button";
-import { ShieldCheck, BarChart3, LogOut, User } from "lucide-react";
+import { LogOut, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser, useAuth } from "@/firebase";
 import { signOut } from "firebase/auth";
@@ -58,22 +58,6 @@ const Header = () => {
       </Link>
       
       <div className="flex items-center gap-2">
-        {/* Botón Admin Stats */}
-        <Button asChild variant="outline" size="sm">
-          <Link href="/admin-stats">
-            <BarChart3 className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Dashboard</span>
-          </Link>
-        </Button>
-
-        {/* Botón Admin (Config) */}
-        <Button asChild variant="outline" size="sm">
-          <Link href="/admin">
-            <ShieldCheck className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Config</span>
-          </Link>
-        </Button>
-
         {/* Menú de Usuario */}
         {user && (
           <DropdownMenu>
@@ -89,7 +73,7 @@ const Header = () => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>
-                {user.displayName || user.email || 'Invitado'}
+                {user.displayName || user.email || 'Usuario'}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>

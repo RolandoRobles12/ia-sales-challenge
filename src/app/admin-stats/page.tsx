@@ -7,13 +7,11 @@ import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { collection, doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import type { StarRating, WordCloudEntry, GroupNumber } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Loader2, Download, Lock, Unlock, BarChart3, Calendar, AlertCircle } from "lucide-react";
+import { Loader2, Download, Lock, Unlock, BarChart3, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { useUserRole } from "@/hooks/use-user-role";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const GROUPS: GroupNumber[] = [1, 2, 3, 4, 5, 6, 7, 8];
 
@@ -26,9 +24,6 @@ interface VotingConfig {
 export default function AdminStatsPage() {
   const firestore = useFirestore();
   const toast = useToast();
-  const userRole = useUserRole();
-  const isAdmin = userRole.isAdmin;
-  const isLoadingRole = userRole.isLoadingRole;
   
   const [isUpdating, setIsUpdating] = useState(false);
   const [closeDateTime, setCloseDateTime] = useState('');
@@ -234,29 +229,12 @@ export default function AdminStatsPage() {
     });
   };
 
-  if (isLoadingRatings || isLoadingWords || isLoadingRole) {
+  if (isLoadingRatings || isLoadingWords) {
     return (
       <div className="flex flex-col min-h-screen">
         <Header />
         <main className="flex-1 flex items-center justify-center">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        </main>
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className="flex flex-col min-h-screen">
-        <Header />
-        <main className="flex-1 container mx-auto p-4">
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Acceso Denegado</AlertTitle>
-            <AlertDescription>
-              No tienes permisos para acceder a esta página. Solo los administradores pueden ver el dashboard.
-            </AlertDescription>
-          </Alert>
         </main>
       </div>
     );
@@ -436,7 +414,7 @@ export default function AdminStatsPage() {
               </div>
               <div className="text-center">
                 <p className="text-3xl font-bold text-primary">
-                  {GROUPS.reduce((acc, g) => acc + stats[g].averageStars, 0) / GROUPS.length || 0}
+                  {(GROUPS.reduce((acc, g) => acc + stats[g].averageStars, 0) / GROUPS.length).toFixed(2) || 0}
                 </p>
                 <p className="text-sm text-muted-foreground">Promedio General</p>
               </div>
